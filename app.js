@@ -1,11 +1,14 @@
-const STORAGE_KEY = "blur-service-state-v2";
+import * as api from "./backend.js";
+
+const LEGACY_STORAGE_KEY = "blur-service-state-v2";
 const app = document.querySelector("#app");
 const photoInput = document.querySelector("#photo-input");
 const avatarInput = document.querySelector("#avatar-input");
 
-const today = new Date();
-const topicDate = today.toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" }).replace(/\.$/, "");
-const topic = "오늘 내가 지나친 작은 장면";
+// 허브 날짜는 서버(UTC) 기준 — 한국시간 오전 9시에 새 허브가 열림
+const HUB_DATE = api.hubDateToday();
+const topicDate = `${HUB_DATE.slice(5, 7)}. ${HUB_DATE.slice(8, 10)}`;
+let topic = api.topicForDate(HUB_DATE);
 
 const gradients = [
   "linear-gradient(135deg,#f7cedd,#b8d7d6 55%,#6c8093)",
@@ -21,92 +24,11 @@ const gradients = [
 const palette = ["#b06a92", "#6aa392", "#8f7cc2", "#d48b72", "#6d8aaa"];
 const emojiOptions = ["☁️", "🫶", "🌙", "🍑", "✨"];
 
-const users = [
-  { id: "yuna", name: "유나", color: "#b06a92", public: true, mutual: "친구 6명" },
-  { id: "sora", name: "소라", color: "#6aa392", public: false, mutual: "친구 3명" },
-  { id: "taeho", name: "태호", color: "#7b89b8", public: true, mutual: "친구 2명" },
-  { id: "arin", name: "아린", color: "#d48b72", public: false, mutual: "같은 학교" },
-  { id: "minji", name: "민지", color: "#8f7cc2", public: true, mutual: "친구 4명" },
-  { id: "jiwoo", name: "지우", color: "#c17f9f", public: false, mutual: "친구 1명" },
-  { id: "hayul", name: "하율", color: "#6d8aaa", public: true, mutual: "동아리" }
-];
-
 const gallery = gradients.map((grad, index) => ({
   id: `g${index + 1}`,
   grad,
   label: String(index + 1).padStart(2, "0")
 }));
-
-function seedPosts() {
-  return [
-    {
-      id: "p-yuna-1",
-      authorId: "yuna",
-      time: "08:12",
-      caption: "등교길에 잠깐 멈춘 장면",
-      ratio: "4 / 5",
-      split: 1,
-      grad: gradients[0],
-      public: true,
-      comments: [{ by: "sora", text: "색감 좋다" }]
-    },
-    {
-      id: "p-sora-1",
-      authorId: "sora",
-      time: "09:40",
-      caption: "조용한 책상",
-      ratio: "1 / 1",
-      split: 2,
-      grad: gradients[2],
-      public: false,
-      comments: []
-    },
-    {
-      id: "p-taeho-1",
-      authorId: "taeho",
-      time: "11:03",
-      caption: "오늘의 하늘",
-      ratio: "16 / 9",
-      split: 1,
-      grad: gradients[5],
-      public: true,
-      comments: [{ by: "me", text: "와 이건 열어봐야지" }]
-    },
-    {
-      id: "p-minji-1",
-      authorId: "minji",
-      time: "12:28",
-      caption: "점심 먹고 산책",
-      ratio: "4 / 5",
-      split: 4,
-      grad: gradients[3],
-      public: true,
-      comments: []
-    },
-    {
-      id: "p-jiwoo-1",
-      authorId: "jiwoo",
-      time: "13:05",
-      caption: "",
-      ratio: "1 / 1",
-      split: 1,
-      grad: gradients[4],
-      public: false,
-      comments: []
-    },
-    {
-      id: "p-hayul-1",
-      authorId: "hayul",
-      time: "14:21",
-      caption: "창밖 빛",
-      ratio: "4 / 5",
-      split: 2,
-      grad: gradients[7],
-      public: true,
-      comments: [{ by: "yuna", text: "이거 완전 오늘 분위기" }]
-    }
-  ];
-}
 
 function blankUpload() {
   return {
@@ -128,26 +50,22 @@ function blankUpload() {
 
 function defaultState() {
   return {
-    auth: "welcome",
+    auth: "loading",
     tab: "home",
-    profile: {
-      name: "도현",
-      id: "dohyun",
-      color: palette[0],
-      emoji: "흐",
-      photo: ""
-    },
-    myPublic: true,
+    me: "",
+    people: [],
+    profile: { name: "", id: "", color: palette[0], emoji: "", photo: "" },
+    myPublic: false,
     notif: true,
     myPosted: false,
-    friends: ["yuna", "sora", "taeho"],
-    reqs: ["arin"],
-    recs: ["minji", "jiwoo", "hayul"],
+    visitors: 0,
+    friends: [],
+    reqs: [],
+    recs: [],
     sentRequests: {},
-    posts: seedPosts(),
+    posts: [],
     revealed: {},
-    extraComments: {},
-    signup: { name: "", id: "" },
+    signup: { name: "", id: "", pw: "", avail: null },
     login: { id: "", password: "", error: "" },
     search: "",
     upload: blankUpload(),
@@ -164,32 +82,21 @@ function defaultState() {
     },
     leave: { open: false, reason: "", agree: false, confirm: false, done: false },
     toast: "",
-    socialBusy: ""
+    busy: ""
   };
 }
 
-let state = loadState();
+let state = defaultState();
 let longPressTimer = null;
 let longPressFired = false;
 let toastTimer = null;
+let handleCheckTimer = null;
 
-function loadState() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (!saved || typeof saved !== "object") return defaultState();
-    return { ...defaultState(), ...saved, upload: { ...blankUpload(), ...(saved.upload || {}), open: false } };
-  } catch {
-    return defaultState();
-  }
-}
+// 데모(localStorage) 시절 데이터 정리 — 이제 데이터는 서버에 있음
+localStorage.removeItem(LEGACY_STORAGE_KEY);
 
-function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-}
-
-function update(mutator, persist = true) {
+function update(mutator) {
   mutator(state);
-  if (persist) saveState();
   render();
 }
 
@@ -200,9 +107,127 @@ function toast(message) {
   });
   toastTimer = setTimeout(() => {
     state.toast = "";
-    saveState();
     render();
   }, 2600);
+}
+
+// ---------------- 서버 데이터 매핑 ----------------
+
+function mapProfile(row) {
+  return {
+    uid: row.user_id,
+    id: row.handle,
+    name: row.name,
+    color: row.color || palette[0],
+    emoji: row.emoji || "",
+    photo: row.avatar_url || "",
+    public: row.is_public
+  };
+}
+
+function uidOf(handle) {
+  if (handle === "me") return state.me;
+  return state.people.find((p) => p.id === handle)?.uid || "";
+}
+
+function handleOf(uid) {
+  if (uid === state.me) return "me";
+  return state.people.find((p) => p.uid === uid)?.id || "";
+}
+
+function dayLabel(hubDate) {
+  const diff = Math.round((Date.parse(HUB_DATE) - Date.parse(hubDate)) / 86400000);
+  return diff <= 0 ? "오늘" : `${diff}일 전`;
+}
+
+function mapPost(row) {
+  const isGrad = String(row.image_url).startsWith("grad:");
+  const gradIndex = isGrad ? Number(row.image_url.slice(5)) : 0;
+  return {
+    id: row.id,
+    authorId: handleOf(row.author_id),
+    hubDate: row.hub_date,
+    time: new Date(row.created_at).toTimeString().slice(0, 5),
+    caption: row.caption || "",
+    ratio: row.ratio || "4 / 5",
+    split: Number(row.split || 1),
+    filter: row.filter || "none",
+    grad: gradients[((gradIndex % gradients.length) + gradients.length) % gradients.length],
+    image: isGrad ? "" : row.image_url,
+    public: Boolean(row.share_all),
+    label: dayLabel(row.hub_date),
+    comments: (row.comments || [])
+      .slice()
+      .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))
+      .map((c) => ({ by: c.author_id === state.me ? "me" : handleOf(c.author_id), text: c.body }))
+  };
+}
+
+function applySocial(s, rows) {
+  const friends = [];
+  const reqs = [];
+  const sent = {};
+  rows.forEach((row) => {
+    const otherUid = row.user_a === s.me ? row.user_b : row.user_a;
+    const handle = s.people.find((p) => p.uid === otherUid)?.id;
+    if (!handle) return;
+    if (row.status === "accepted") friends.push(handle);
+    else if (row.status === "pending" && row.requested_by === s.me) sent[handle] = true;
+    else if (row.status === "pending") reqs.push(handle);
+  });
+  s.friends = friends;
+  s.reqs = reqs;
+  s.sentRequests = sent;
+  s.recs = s.people
+    .filter((p) => p.uid !== s.me && !friends.includes(p.id) && !reqs.includes(p.id) && !sent[p.id])
+    .slice(0, 5)
+    .map((p) => p.id);
+}
+
+async function loadAll(uid) {
+  const [profiles, posts, friendRows, revealIds, topicText] = await Promise.all([
+    api.fetchProfiles(),
+    api.fetchPosts(),
+    api.fetchFriendships(),
+    api.fetchMyReveals(uid),
+    api.ensureTodayHub()
+  ]);
+  if (topicText) topic = topicText;
+  state.me = uid;
+  state.people = profiles.map(mapProfile);
+  const rawMine = profiles.find((row) => row.user_id === uid);
+  if (rawMine) {
+    const mine = mapProfile(rawMine);
+    state.profile = { name: mine.name, id: mine.id, color: mine.color, emoji: mine.emoji, photo: mine.photo };
+    state.myPublic = mine.public;
+    state.notif = rawMine.notif !== false;
+  }
+  state.posts = posts.map(mapPost);
+  applySocial(state, friendRows);
+  state.revealed = Object.fromEntries(revealIds.map((id) => [id, true]));
+  state.posts.filter((p) => p.authorId === "me").forEach((p) => { state.revealed[p.id] = true; });
+  const myToday = state.posts.find((p) => p.authorId === "me" && p.hubDate === HUB_DATE);
+  state.myPosted = Boolean(myToday);
+  state.visitors = myToday ? await api.countPostReveals(myToday.id, uid) : 0;
+}
+
+async function boot() {
+  try {
+    const session = await api.getSession();
+    if (!session) {
+      state = defaultState();
+      state.auth = "welcome";
+      return render();
+    }
+    await loadAll(session.user.id);
+    state.auth = "app";
+    render();
+  } catch (error) {
+    state = defaultState();
+    state.auth = "welcome";
+    render();
+    toast(error.message || "연결에 실패했어요");
+  }
 }
 
 function escapeHtml(value = "") {
@@ -225,19 +250,13 @@ function personById(id) {
       emoji: state.profile.emoji
     };
   }
-  return users.find((u) => u.id === id);
+  return state.people.find((u) => u.id === id);
 }
 
 function initialFor(person) {
   if (!person) return "?";
   if (person.emoji) return person.emoji;
   return person.name.slice(0, 1);
-}
-
-function allTakenIds(includeCurrentProfile = false) {
-  const ids = users.map((u) => u.id);
-  if (includeCurrentProfile) ids.push(state.profile.id);
-  return new Set(ids.map((id) => id.toLowerCase()));
 }
 
 function normalizeId(value) {
@@ -248,11 +267,23 @@ function validId(value) {
   return /^[a-z0-9_]{3,16}$/.test(value);
 }
 
-function isIdAvailable(value, allowCurrent = false) {
-  const id = normalizeId(value);
-  if (!validId(id)) return false;
-  if (allowCurrent && id === state.profile.id) return true;
-  return !allTakenIds(!allowCurrent && state.auth !== "signup").has(id);
+// 아이디 중복 검사 — 서버 RPC를 디바운스 호출, 결과는 signup.avail / edit.avail에 저장
+function scheduleHandleCheck(kind) {
+  clearTimeout(handleCheckTimer);
+  const target = () => (kind === "signup" ? state.signup : state.edit);
+  const value = normalizeId(target()?.id || "");
+  const setAvail = (v) => update(() => { const t = target(); if (t) t.avail = v; });
+  if (!value) return setAvail(null);
+  if (!validId(value)) return setAvail(false);
+  if (kind === "edit" && value === state.profile.id) return setAvail(true);
+  setAvail("checking");
+  handleCheckTimer = setTimeout(async () => {
+    const ok = await api.isHandleAvailable(value);
+    update(() => {
+      const t = target();
+      if (t && normalizeId(t.id) === value) t.avail = ok;
+    });
+  }, 350);
 }
 
 function icon(name) {
@@ -324,33 +355,19 @@ function avatar(person, sizeClass = "avatar") {
 }
 
 function postComments(post) {
-  return [...(post.comments || []), ...(state.extraComments[post.id] || [])];
+  return post.comments || [];
 }
 
 function postsForHome() {
-  return state.posts.filter((post) => post.authorId === "me" || state.friends.includes(post.authorId));
+  return state.posts.filter((post) => post.hubDate === HUB_DATE && (post.authorId === "me" || state.friends.includes(post.authorId)));
 }
 
 function postsForAll() {
-  return state.posts.filter((post) => post.public);
+  return state.posts.filter((post) => post.hubDate === HUB_DATE && post.public);
 }
 
 function postsByAuthor(authorId) {
-  const base = state.posts.filter((post) => post.authorId === authorId);
-  if (base.length) return base;
-  const userIndex = users.findIndex((u) => u.id === authorId);
-  return [0, 1, 2, 3, 4].map((n) => ({
-    id: `archive-${authorId}-${n}`,
-    authorId,
-    time: "지난 허브",
-    caption: "",
-    ratio: "1 / 1",
-    split: n % 3 === 0 ? 4 : 1,
-    grad: gradients[(userIndex + n + gradients.length) % gradients.length],
-    public: true,
-    label: n === 0 ? "오늘" : `${n + 1}일 전`,
-    comments: []
-  }));
+  return state.posts.filter((post) => post.authorId === authorId);
 }
 
 function render() {
@@ -358,13 +375,15 @@ function render() {
   const activeField = active && app.contains(active) ? active.dataset.field : "";
   const selStart = activeField && typeof active.selectionStart === "number" ? active.selectionStart : null;
   const selEnd = activeField && typeof active.selectionEnd === "number" ? active.selectionEnd : null;
-  const content = state.auth === "welcome"
-    ? welcomeView()
-    : state.auth === "signup"
-      ? signupView()
-      : state.auth === "login"
-        ? loginView()
-        : appView();
+  const content = state.auth === "loading"
+    ? loadingView()
+    : state.auth === "welcome"
+      ? welcomeView()
+      : state.auth === "signup"
+        ? signupView()
+        : state.auth === "login"
+          ? loginView()
+          : appView();
   app.innerHTML = `<div class="phone">${content}${busyView()}${toastView()}</div>`;
   if (activeField) {
     const el = app.querySelector(`[data-field="${activeField}"]`);
@@ -376,6 +395,13 @@ function render() {
     }
   }
   afterRender();
+}
+
+function loadingView() {
+  return `<section class="screen" style="justify-content:center;align-items:center;display:flex;flex-direction:column;gap:14px">
+    <div class="spinner"></div>
+    <div class="brand logo" style="font-size:26px">blur</div>
+  </section>`;
 }
 
 function welcomeView() {
@@ -399,18 +425,21 @@ function signupView() {
   const nameOk = state.signup.name.trim().length > 0 && state.signup.name.trim().length <= 12;
   const id = normalizeId(state.signup.id);
   const idOk = validId(id);
-  const available = isIdAvailable(id);
-  const enabled = nameOk && available;
+  const avail = state.signup.avail;
+  const pwOk = state.signup.pw.length >= 6;
+  const enabled = nameOk && idOk && avail === true && pwOk;
   let idHint = "영문 소문자, 숫자, _ 조합 3-16자";
   let hintClass = "";
   if (id) {
     if (!idOk) {
       idHint = "아이디는 3-16자의 영문/숫자/_만 가능해요";
       hintClass = "bad";
-    } else if (!available) {
+    } else if (avail === "checking") {
+      idHint = "아이디 확인 중…";
+    } else if (avail === false) {
       idHint = "이미 사용 중인 아이디예요";
       hintClass = "bad";
-    } else {
+    } else if (avail === true) {
       idHint = "사용할 수 있는 아이디예요 · 나만 쓰는 고유한 이름이 돼요";
       hintClass = "good";
     }
@@ -427,6 +456,10 @@ function signupView() {
         <label>
           <input class="input" data-field="signup.id" maxlength="16" value="${escapeHtml(id)}" placeholder="@아이디">
           <div class="hint ${hintClass}">${idHint}</div>
+        </label>
+        <label>
+          <input class="input" type="password" data-field="signup.pw" value="${escapeHtml(state.signup.pw)}" placeholder="비밀번호 (6자 이상)">
+          ${state.signup.pw && !pwOk ? `<div class="hint bad">비밀번호는 6자 이상이어야 해요</div>` : ""}
         </label>
         <button class="btn ${enabled ? "" : "disabled"}" ${enabled ? "" : "disabled"} data-action="signup-submit">시작하기</button>
         <button class="btn secondary" data-action="go-login">이미 계정이 있어요</button>
@@ -592,19 +625,7 @@ function personRow(user, mode) {
 
 function myView() {
   const my = personById("me");
-  const myPosts = state.posts.filter((post) => post.authorId === "me");
-  const archive = myPosts.length ? myPosts : [0, 1, 2, 3, 4, 5].map((n) => ({
-    id: `my-sample-${n}`,
-    authorId: "me",
-    time: n === 0 ? "오늘" : `${n + 1}일 전`,
-    caption: "",
-    ratio: "1 / 1",
-    split: n % 2 ? 4 : 1,
-    grad: gradients[(n + 1) % gradients.length],
-    public: false,
-    label: n === 0 ? "오늘" : `${n + 1}일 전`,
-    comments: []
-  }));
+  const archive = state.posts.filter((post) => post.authorId === "me");
   return `<section class="screen">
     <div class="topbar centered"><h1 class="title">마이</h1></div>
     <div class="profile-head">
@@ -618,7 +639,7 @@ function myView() {
     </div>
     <div class="glass-card stats-card">
       <div style="display:flex;align-items:baseline;gap:8px">
-        <div class="stat-num">${37 + myPosts.length * 9}</div>
+        <div class="stat-num">${state.visitors}</div>
         <div style="font-size:13px;font-weight:800;color:#5c4a54">명이 오늘 내 응답을 열어봤어요</div>
       </div>
       <div class="hint">방문자 수는 나만 볼 수 있어요</div>
@@ -628,14 +649,16 @@ function myView() {
       <div class="hint-line">탭: 주제 보기 · 길게 누르기: 크게 보기</div>
     </div>
     <div class="screen-scroll">
-      <div class="photo-grid">${archive.map((post, index) => gridTile(post, index)).join("")}</div>
-      ${!state.myPosted ? `<div class="hint" style="text-align:center;margin-top:-82px">오늘의 허브에 아직 응답하지 않았어요</div>` : ""}
+      ${archive.length
+        ? `<div class="photo-grid">${archive.map((post, index) => gridTile(post, index)).join("")}</div>`
+        : `<div class="empty">아직 올린 응답이 없어요</div>`}
+      ${!state.myPosted ? `<div class="hint" style="text-align:center;margin-top:10px">오늘의 허브에 아직 응답하지 않았어요</div>` : ""}
     </div>
   </section>`;
 }
 
-function gridTile(post, index) {
-  const isToday = index === 0;
+function gridTile(post) {
+  const isToday = post.hubDate === HUB_DATE;
   const displayPost = { ...post, ratio: "1 / 1" };
   const revealForce = !isToday || post.authorId !== "me" || state.revealed[post.id];
   return `<div data-long-post="${post.id}" data-action="my-topic" data-post="${post.id}" style="position:relative">
@@ -795,9 +818,9 @@ function profileView(userId, mode) {
     </div>
     <div class="grid-title"><div class="section-title" style="margin:0">${escapeHtml(user.name)}님의 허브 응답</div></div>
     <div class="screen-scroll">
-      <div class="photo-grid">${posts.map((post, index) => {
-        const forceReveal = isPublic && index > 0;
-        return `<div>${mediaFrame({ ...post, ratio: "1 / 1" }, "square", { forceReveal, square: true, short: true })}<div class="photo-label">${escapeHtml(index === 0 ? "오늘" : post.label || "지난 허브")}</div></div>`;
+      <div class="photo-grid">${posts.map((post) => {
+        const forceReveal = post.hubDate !== HUB_DATE;
+        return `<div>${mediaFrame({ ...post, ratio: "1 / 1" }, "square", { forceReveal, square: true, short: true })}<div class="photo-label">${escapeHtml(post.label || "지난 허브")}</div></div>`;
       }).join("")}</div>
       <div class="hint" style="text-align:center;margin-top:14px">${isPublic ? "공개 계정의 지난 허브는 누구나 볼 수 있어요" : "오늘의 응답은 탭해서 blur를 풀 수 있어요"}</div>
     </div>
@@ -807,7 +830,7 @@ function profileView(userId, mode) {
 function editView() {
   const edit = state.edit;
   const id = normalizeId(edit.id);
-  const available = isIdAvailable(id, true);
+  const available = edit.avail !== false;
   return `<section class="overlay">
     <div class="topbar">
       <button class="ghost-icon" data-action="close-edit">←</button>
@@ -1011,11 +1034,11 @@ function viewerView() {
 }
 
 function busyView() {
-  if (!state.socialBusy) return "";
+  if (!state.busy) return "";
   return `<div class="busy">
     <div class="busy-card">
       <div class="spinner"></div>
-      <div>${escapeHtml(state.socialBusy)} 계정으로 연결하는 중…</div>
+      <div>${escapeHtml(state.busy)}</div>
     </div>
   </div>`;
 }
@@ -1088,6 +1111,7 @@ function setField(field, value) {
   update((s) => {
     if (field === "signup.name") s.signup.name = String(value).slice(0, 12);
     if (field === "signup.id") s.signup.id = normalizeId(value);
+    if (field === "signup.pw") s.signup.pw = String(value);
     if (field === "login.id") s.login.id = String(value);
     if (field === "login.password") s.login.password = String(value);
     if (field === "search") s.search = String(value);
@@ -1102,6 +1126,8 @@ function setField(field, value) {
     }
     if (field === "leave.agree") s.leave.agree = Boolean(value);
   });
+  if (field === "signup.id") scheduleHandleCheck("signup");
+  if (field === "edit.id") scheduleHandleCheck("edit");
 }
 
 function handleAction(action, el) {
@@ -1144,6 +1170,7 @@ function handleAction(action, el) {
     case "publish":
       return publishPost();
     case "reveal":
+      api.addReveal(state.me, postId).catch(() => {});
       return update((s) => { s.revealed[postId] = true; });
     case "open-comments":
       return update((s) => { s.overlays.commentsFor = postId; });
@@ -1162,21 +1189,21 @@ function handleAction(action, el) {
     case "close-friend-profile":
       return update((s) => { s.overlays.friendUser = ""; });
     case "send-request":
-      return update((s) => { s.sentRequests[id] = true; }, true), toast("친구 요청을 보냈어요");
+      return friendAction("request", id);
     case "accept-request":
-      return update((s) => { s.reqs = s.reqs.filter((x) => x !== id); if (!s.friends.includes(id)) s.friends.push(id); }), toast("친구가 되었어요");
+      return friendAction("accept", id);
     case "decline-request":
-      return update((s) => { s.reqs = s.reqs.filter((x) => x !== id); }), toast("요청을 거절했어요");
+      return friendAction("decline", id);
     case "friend-actions":
       return update((s) => { s.overlays.actionsFor = id; });
     case "close-actions":
       return update((s) => { s.overlays.actionsFor = ""; });
     case "remove-friend":
-      return update((s) => { s.friends = s.friends.filter((x) => x !== id); s.overlays.actionsFor = ""; }), toast("친구를 삭제했어요");
+      return friendAction("remove", id);
     case "block-friend":
-      return update((s) => { s.friends = s.friends.filter((x) => x !== id); s.overlays.actionsFor = ""; }), toast("차단했어요");
+      return friendAction("block", id);
     case "open-edit":
-      return update((s) => { s.edit = { ...s.profile, emojiFree: "" }; });
+      return update((s) => { s.edit = { ...s.profile, emojiFree: "", avail: true }; });
     case "close-edit":
       return update((s) => { s.edit = null; });
     case "set-edit-color":
@@ -1200,7 +1227,7 @@ function handleAction(action, el) {
     case "close-logout":
       return update((s) => { s.overlays.logout = false; });
     case "confirm-logout":
-      return update((s) => { s.auth = "welcome"; s.overlays.logout = false; s.overlays.settings = false; }), toast("로그아웃했어요");
+      return doLogout();
     case "open-leave":
       return update((s) => { s.leave = { open: true, reason: "", agree: false, confirm: false, done: false }; });
     case "close-leave":
@@ -1212,9 +1239,9 @@ function handleAction(action, el) {
     case "cancel-leave-confirm":
       return update((s) => { s.leave.confirm = false; });
     case "confirm-leave":
-      return localStorage.removeItem(STORAGE_KEY), state = defaultState(), state.auth = "app", state.leave = { open: true, reason: "", agree: false, confirm: false, done: true }, render();
+      return confirmLeave();
     case "finish-leave":
-      return state = defaultState(), saveState(), render();
+      return state = defaultState(), state.auth = "welcome", render();
     case "my-topic":
       return toast(`${topicDate} 허브 · ${topic}`);
     case "close-viewer":
@@ -1224,40 +1251,101 @@ function handleAction(action, el) {
   }
 }
 
-function signup() {
+async function signup() {
   const name = state.signup.name.trim().slice(0, 12);
   const id = normalizeId(state.signup.id);
-  if (!name || !isIdAvailable(id)) return toast("이름과 아이디를 확인해 주세요");
-  update((s) => {
-    s.profile.name = name;
-    s.profile.id = id;
-    s.auth = "app";
-  });
-  toast("blur에 오신 걸 환영해요");
+  const pw = state.signup.pw;
+  if (!name || !validId(id)) return toast("이름과 아이디를 확인해 주세요");
+  if (pw.length < 6) return toast("비밀번호는 6자 이상이어야 해요");
+  update((s) => { s.busy = "계정을 만드는 중…"; });
+  try {
+    const available = await api.isHandleAvailable(id);
+    if (!available) {
+      update((s) => { s.busy = ""; s.signup.avail = false; });
+      return toast("이미 사용 중인 아이디예요");
+    }
+    const session = await api.signUp(name, id, pw);
+    await loadAll(session.user.id);
+    state.busy = "";
+    state.auth = "app";
+    render();
+    toast("blur에 오신 걸 환영해요");
+  } catch (error) {
+    update((s) => { s.busy = ""; });
+    toast(error.message || "가입에 실패했어요");
+  }
 }
 
-function login() {
+async function login() {
   const id = normalizeId(state.login.id);
   if (!id || !state.login.password) {
     return update((s) => { s.login.error = "아이디와 비밀번호를 모두 입력해 주세요"; });
   }
-  update((s) => {
-    s.login.error = "";
-    s.profile.id = id || s.profile.id;
-    s.auth = "app";
-  });
-  toast("다시 만났네요");
+  update((s) => { s.busy = "로그인하는 중…"; });
+  try {
+    const session = await api.signIn(id, state.login.password);
+    await loadAll(session.user.id);
+    state.busy = "";
+    state.auth = "app";
+    state.login = { id: "", password: "", error: "" };
+    render();
+    toast("다시 만났네요");
+  } catch {
+    update((s) => { s.busy = ""; s.login.error = "아이디 또는 비밀번호가 맞지 않아요"; });
+  }
 }
 
 function socialLogin(provider) {
-  update((s) => { s.socialBusy = provider; });
-  setTimeout(() => {
+  toast(`${provider} 로그인은 앱 출시 단계에서 열려요`);
+}
+
+async function doLogout() {
+  update((s) => { s.busy = "로그아웃하는 중…"; });
+  await api.signOut();
+  state = defaultState();
+  state.auth = "welcome";
+  render();
+  toast("로그아웃했어요");
+}
+
+async function confirmLeave() {
+  update((s) => { s.busy = "탈퇴 처리 중…"; });
+  try {
+    await api.deleteAccount();
+    state = defaultState();
+    state.auth = "app";
+    state.leave = { open: true, reason: "", agree: false, confirm: false, done: true };
+    render();
+  } catch {
+    update((s) => { s.busy = ""; s.leave.confirm = false; });
+    toast("탈퇴 처리에 실패했어요 — 잠시 후 다시 시도해 주세요");
+  }
+}
+
+async function friendAction(kind, handle) {
+  const uid = uidOf(handle);
+  if (!uid) return;
+  try {
+    if (kind === "request") await api.sendFriendRequest(state.me, uid);
+    else if (kind === "accept") await api.acceptFriend(state.me, uid);
+    else if (kind === "decline" || kind === "remove") await api.removeFriendship(state.me, uid);
+    else if (kind === "block") await api.blockFriend(state.me, uid);
+    const rows = await api.fetchFriendships();
     update((s) => {
-      s.socialBusy = "";
-      s.auth = "app";
+      applySocial(s, rows);
+      if (kind !== "request") s.overlays.actionsFor = "";
     });
-    toast(`${provider} 계정으로 연결했어요`);
-  }, 1100);
+    const messages = {
+      request: "친구 요청을 보냈어요",
+      accept: "친구가 되었어요",
+      decline: "요청을 거절했어요",
+      remove: "친구를 삭제했어요",
+      block: "차단했어요"
+    };
+    toast(messages[kind]);
+  } catch (error) {
+    toast(error.message || "요청에 실패했어요");
+  }
 }
 
 function uploadBack() {
@@ -1293,31 +1381,41 @@ function setUpload(key, value) {
   });
 }
 
-function publishPost() {
+async function publishPost() {
   const up = state.upload;
   if (!up.selectedId && !up.selectedImage) return toast("사진을 먼저 선택해 주세요");
-  const post = {
-    id: `me-${Date.now()}`,
-    authorId: "me",
-    time: "방금",
-    caption: up.caption.trim().slice(0, 60),
-    ratio: up.ratio,
-    split: up.split,
-    grad: up.selectedGrad || gradients[0],
-    image: up.selectedImage,
-    filter: up.filter,
-    public: Boolean(up.shareAll),
-    label: up.selectedLabel || "업로드",
-    comments: []
-  };
-  update((s) => {
-    s.posts = [post, ...s.posts];
-    s.myPosted = true;
-    s.upload = blankUpload();
-    s.revealed[post.id] = true;
-    s.tab = "home";
-  });
-  toast("오늘의 허브에 올렸어요");
+  update((s) => { s.busy = "오늘의 허브에 올리는 중…"; });
+  try {
+    let imageUrl;
+    if (up.selectedImage) {
+      imageUrl = await api.uploadPhoto(state.me, up.selectedImage);
+    } else {
+      const gradIndex = gallery.findIndex((g) => g.id === up.selectedId);
+      imageUrl = `grad:${Math.max(0, gradIndex)}`;
+    }
+    const row = await api.createPost(state.me, {
+      imageUrl,
+      caption: up.caption.trim().slice(0, 60),
+      ratio: up.ratio,
+      split: up.split,
+      filter: up.filter,
+      shareAll: Boolean(up.shareAll),
+      saveRoom: Boolean(up.saveRoom)
+    });
+    const post = mapPost(row);
+    update((s) => {
+      s.busy = "";
+      s.posts = [post, ...s.posts];
+      s.myPosted = true;
+      s.upload = blankUpload();
+      s.revealed[post.id] = true;
+      s.tab = "home";
+    });
+    toast("오늘의 허브에 올렸어요");
+  } catch (error) {
+    update((s) => { s.busy = ""; });
+    toast(error.message || "올리지 못했어요");
+  }
 }
 
 function openPerson(userId) {
@@ -1331,41 +1429,63 @@ function openPerson(userId) {
   });
 }
 
-function sendComment() {
+async function sendComment() {
   const input = document.querySelector("#comment-input");
   const text = input?.value.trim().slice(0, 100);
   const postId = state.overlays.commentsFor;
   if (!text || !postId) return;
-  update((s) => {
-    if (!s.extraComments[postId]) s.extraComments[postId] = [];
-    s.extraComments[postId].push({ by: "me", text });
-  });
+  try {
+    await api.addComment(state.me, postId, text);
+    update((s) => {
+      const post = s.posts.find((p) => p.id === postId);
+      if (post) post.comments.push({ by: "me", text });
+    });
+  } catch (error) {
+    toast(error.message || "댓글을 남기지 못했어요");
+  }
 }
 
-function saveEdit() {
+async function saveEdit() {
   const edit = state.edit;
   const id = normalizeId(edit.id);
   if (!edit.name.trim()) return toast("이름을 입력해 주세요");
-  if (!isIdAvailable(id, true)) return toast("아이디를 확인해 주세요");
-  update((s) => {
-    s.profile = {
-      name: edit.name.trim().slice(0, 12),
-      id,
-      color: edit.color,
-      emoji: edit.emoji || edit.name.trim().slice(0, 1),
-      photo: edit.photo || ""
-    };
-    s.edit = null;
-  });
-  toast("프로필을 저장했어요");
+  if (!validId(id) || edit.avail === false) return toast("아이디를 확인해 주세요");
+  update((s) => { s.busy = "저장하는 중…"; });
+  try {
+    let avatarUrl = edit.photo || "";
+    if (avatarUrl.startsWith("data:")) {
+      avatarUrl = await api.uploadPhoto(state.me, avatarUrl, "avatar");
+    }
+    const name = edit.name.trim().slice(0, 12);
+    const emoji = edit.emoji || name.slice(0, 1);
+    await api.updateProfile(state.me, { handle: id, name, color: edit.color, emoji, avatar_url: avatarUrl || null });
+    update((s) => {
+      s.busy = "";
+      s.profile = { name, id, color: edit.color, emoji, photo: avatarUrl };
+      const mine = s.people.find((p) => p.uid === s.me);
+      if (mine) Object.assign(mine, { id, name, color: edit.color, emoji, photo: avatarUrl });
+      s.edit = null;
+    });
+    toast("프로필을 저장했어요");
+  } catch (error) {
+    update((s) => { s.busy = ""; });
+    toast(error.message || "저장하지 못했어요");
+  }
 }
 
-function toggleSetting(key) {
-  update((s) => {
-    s[key] = !s[key];
-  });
-  if (key === "myPublic") {
-    toast(state.myPublic ? "공개 계정으로 전환했어요" : "비공개 계정으로 전환했어요");
+async function toggleSetting(key) {
+  const next = !state[key];
+  update((s) => { s[key] = next; });
+  try {
+    await api.updateProfile(state.me, key === "myPublic" ? { is_public: next } : { notif: next });
+    if (key === "myPublic") {
+      const mine = state.people.find((p) => p.uid === state.me);
+      if (mine) mine.public = next;
+      toast(next ? "공개 계정으로 전환했어요" : "비공개 계정으로 전환했어요");
+    }
+  } catch (error) {
+    update((s) => { s[key] = !next; });
+    toast(error.message || "설정을 바꾸지 못했어요");
   }
 }
 
@@ -1441,3 +1561,4 @@ if ("serviceWorker" in navigator) {
 }
 
 render();
+boot();

@@ -55,4 +55,8 @@ python3 -m http.server 4173
 
 ## 프로덕션 전환 메모
 
-현재 MVP는 사용자 데이터와 업로드 이미지를 브라우저 로컬 저장소에 보관합니다. 실제 다중 사용자 서비스로 공개하려면 `docs/backend-plan.md`의 테이블과 API를 기준으로 Supabase 또는 Firebase를 연결하면 됩니다.
+현재 MVP는 사용자 데이터와 업로드 이미지를 브라우저 로컬 저장소에 보관합니다. 실제 다중 사용자 서비스로 공개하려면 `docs/backend-plan.md`의 테이블과 API를 기준으로 Supabase를 연결하면 됩니다.
+
+- `supabase/schema.sql` — 테이블 6종 + RLS + Storage 정책 완성본 (SQL Editor에 붙여넣어 실행)
+- `docs/supabase-setup.md` — 프로젝트 생성부터 키 발급까지 단계별 가이드
+- 앱 스토어 출시 경로: Supabase 연동 → React Native + Expo 재구현(권장) 또는 Capacitor 래핑 → 심사 제출
