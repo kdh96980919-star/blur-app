@@ -179,8 +179,7 @@ function applySocial(s, rows) {
   s.reqs = reqs;
   s.sentRequests = sent;
   s.recs = s.people
-    .filter((p) => p.uid !== s.me && !friends.includes(p.id) && !reqs.includes(p.id) && !sent[p.id])
-    .slice(0, 5)
+    .filter((p) => p.uid !== s.me && !friends.includes(p.id) && !reqs.includes(p.id))
     .map((p) => p.id);
 }
 
@@ -564,9 +563,14 @@ function allView() {
 
 function friendsView() {
   const query = state.search.trim().toLowerCase();
+  const matches = (u) => !query || u.name.toLowerCase().includes(query) || u.id.includes(query);
   const friendUsers = state.friends
     .map((id) => personById(id))
-    .filter((u) => !query || u.name.includes(query) || u.id.includes(query));
+    .filter((u) => u && matches(u));
+  const recUsers = state.recs
+    .map((id) => personById(id))
+    .filter((u) => u && matches(u));
+  const recsShown = query ? recUsers : recUsers.slice(0, 5);
   return `<section class="screen">
     <div class="topbar centered" style="display:block;padding-left:26px;padding-right:26px">
       <h1 class="title">친구 <span style="font-size:14px;color:var(--point)">${state.friends.length}</span></h1>
@@ -578,8 +582,8 @@ function friendsView() {
         <div class="row-list">${state.reqs.map((id) => personRow(personById(id), "request")).join("")}</div>
       </section>` : ""}
       <section class="section">
-        <h2 class="section-title">추천 친구</h2>
-        <div class="row-list">${state.recs.map((id) => personRow(personById(id), "recommend")).join("") || `<div class="empty">추천할 친구를 찾는 중이에요</div>`}</div>
+        <h2 class="section-title">${query ? "사용자 검색" : "추천 친구"}</h2>
+        <div class="row-list">${recsShown.map((u) => personRow(u, "recommend")).join("") || `<div class="empty">${query ? "검색 결과가 없어요" : "추천할 친구를 찾는 중이에요"}</div>`}</div>
       </section>
       <section class="section">
         <h2 class="section-title">내 친구</h2>
@@ -596,7 +600,7 @@ function personRow(user, mode) {
       ${avatar(user)}
       <div class="person-main">
         <div class="person-name">${escapeHtml(user.name)}</div>
-        <div class="person-id">@${escapeHtml(user.id)} · ${escapeHtml(user.mutual || "")}</div>
+        <div class="person-id">@${escapeHtml(user.id)}${user.mutual ? ` · ${escapeHtml(user.mutual)}` : ""}</div>
       </div>
       <button class="mini-btn" data-action="accept-request" data-user="${user.id}">수락</button>
       <button class="mini-btn ghost" data-action="decline-request" data-user="${user.id}">거절</button>
@@ -608,7 +612,7 @@ function personRow(user, mode) {
       ${avatar(user)}
       <div class="person-main">
         <div class="person-name">${escapeHtml(user.name)}</div>
-        <div class="person-id">@${escapeHtml(user.id)} · ${escapeHtml(user.mutual || "")}</div>
+        <div class="person-id">@${escapeHtml(user.id)}${user.mutual ? ` · ${escapeHtml(user.mutual)}` : ""}</div>
       </div>
       <button class="mini-btn ${sent ? "ghost" : ""}" data-action="send-request" data-user="${user.id}">${sent ? "요청 보냄" : "추가"}</button>
     </div>`;
