@@ -1,0 +1,25 @@
+{
+  "name": "blur",
+  "short_name": "blur",
+  "description": "하루 한 번 흐릿하게 만나는 사진 SNS",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f8f5f7",
+  "theme_color": "#f8f5f7",
+  "icons": [
+    {
+      "src": "./assets/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "./assets/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

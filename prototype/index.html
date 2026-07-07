@@ -1,0 +1,1440 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics="">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&amp;family=Quicksand:wght@500;600;700&amp;family=Noto+Sans+KR:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f8f5f7;font-family:'Noto Sans KR',sans-serif}
+a{color:#b06a92}a:hover{color:#8f4f74}
+input{font-family:'Noto Sans KR',sans-serif}
+*::-webkit-scrollbar{display:none}
+@keyframes riseIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes sheetUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes toastIn{0%{opacity:0;transform:translate(-50%,-8px)}12%{opacity:1;transform:translate(-50%,0)}85%{opacity:1}100%{opacity:0}}
+</style>
+</helmet>
+
+<section style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:40px 24px;background:#f8f5f7">
+  <div style="position:relative;width:390px;height:844px;border-radius:44px;overflow:hidden;box-shadow:0 30px 80px rgba(150,90,130,.22);background:linear-gradient(rgba(255,255,255,.76),rgba(255,255,255,.76)),url('uploads/reference-1783339192851.png') center/cover">
+
+    <!-- ============ 오늘 ============ -->
+    <sc-if value="{{ tabHome }}" hint-placeholder-val="{{ true }}">
+      <div data-screen-label="오늘 today's hub" style="position:absolute;inset:0;display:flex;flex-direction:column">
+        <div style="padding:56px 22px 0;display:flex;align-items:center;justify-content:space-between;gap:10px">
+          <div style="flex:1;font-family:Poppins,sans-serif;font-weight:600;font-size:22px;letter-spacing:-.5px;color:#4a3540">blur</div>
+          <div style="flex:none;font-size:10.5px;font-weight:600;letter-spacing:.14em;color:#b06a92;text-align:center">TODAY'S HUB · {{ topicDate }}</div>
+          <div style="flex:1;display:flex;justify-content:flex-end">
+            <sc-if value="{{ notPosted }}" hint-placeholder-val="{{ true }}">
+              <button onClick="{{ openUpload }}" aria-label="사진 올리기" style="flex:none;border:none;cursor:pointer;width:42px;height:42px;border-radius:50%;background:#4a3540;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 16px rgba(74,53,64,.3)">
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+              </button>
+            </sc-if>
+            <sc-if value="{{ myPosted }}" hint-placeholder-val="{{ false }}">
+              <div style="flex:none;width:42px;height:42px;border-radius:50%;background:rgba(224,121,180,.16);color:#b3568b;display:flex;align-items:center;justify-content:center;font:600 15px 'Noto Sans KR'">✓</div>
+            </sc-if>
+          </div>
+        </div>
+        <div style="padding:16px 30px 0;text-align:center;font-family:'Noto Sans KR',sans-serif;font-weight:300;font-size:22px;color:#3c2c36;letter-spacing:-.3px;line-height:1.3">{{ topic }}</div>
+
+        <sc-if value="{{ hasCards }}" hint-placeholder-val="{{ true }}">
+          <div onScroll="{{ homeScroll }}" style="flex:1;display:flex;align-items:center;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;gap:16px;padding:10px 35px;scrollbar-width:none">
+            <sc-for list="{{ cards }}" as="card" hint-placeholder-count="3">
+              <div style="flex:none;width:320px;scroll-snap-align:center">
+                <div style="width:{{ card.boxW }};margin:0 auto">
+                  <div onClick="{{ card.onTap }}" style="position:relative;width:100%;aspect-ratio:{{ card.ratio }};border-radius:24px;overflow:hidden;cursor:pointer;box-shadow:0 18px 44px rgba(150,90,130,.2);border:1px solid rgba(255,255,255,.75)">
+                    <div style="position:absolute;inset:0;display:grid;grid-template-columns:{{ card.gridCols }};gap:2px;filter:blur({{ card.blurPx }});transform:scale({{ card.zoomScale }});transition:filter {{ revealDur }} cubic-bezier(0.22,1,0.36,1)">
+                      <sc-for list="{{ card.tiles }}" as="tl" hint-placeholder-count="1">
+                        <div style="background:{{ tl.grad }};filter:{{ card.tint }}"></div>
+                      </sc-for>
+                    </div>
+                    <sc-if value="{{ card.hidden }}" hint-placeholder-val="{{ true }}">
+                      <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;opacity:{{ card.ovOp }};transition:opacity .3s;pointer-events:none">
+                        <div style="width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.8);display:flex;align-items:center;justify-content:center;font:600 17px 'Noto Sans KR';color:#4a3540">{{ card.initial }}</div>
+                        <div style="padding:9px 18px;border-radius:999px;background:rgba(58,42,52,.75);color:#fff;font:500 12.5px 'Noto Sans KR';backdrop-filter:blur(6px)">탭해서 blur 풀기</div>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ card.revealed }}" hint-placeholder-val="{{ false }}">
+                      <div style="position:absolute;left:14px;bottom:14px;font:500 10.5px ui-monospace,Menlo,monospace;color:rgba(60,35,20,.65);background:rgba(255,255,255,.6);padding:4px 9px;border-radius:7px">[ 사진 · {{ card.label }} ]</div>
+                    </sc-if>
+                  </div>
+                  <div style="margin-top:12px;padding:0 4px;display:flex;align-items:baseline;justify-content:space-between;gap:10px">
+                    <div style="font-size:14px;font-weight:600;color:#3c2c36">{{ card.name }} <span style="font-weight:400;color:#a48b96;font-size:11.5px">· {{ card.time }}</span></div>
+                    <div onClick="{{ card.openComments }}" style="cursor:pointer;font:500 11.5px 'Noto Sans KR';color:#a48b96">댓글 {{ card.commentTotal }}</div>
+                  </div>
+                  <sc-if value="{{ card.hasCaption }}" hint-placeholder-val="{{ false }}">
+                    <div style="margin-top:3px;padding:0 4px;font-size:12.5px;color:#8a6f7d">{{ card.caption }}</div>
+                  </sc-if>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:flex;justify-content:center;gap:7px;padding:4px 0 96px">
+            <sc-for list="{{ dots }}" as="dot" hint-placeholder-count="4">
+              <div style="width:{{ dot.w }};height:7px;border-radius:999px;background:{{ dot.bg }};transition:all .3s"></div>
+            </sc-for>
+          </div>
+        </sc-if>
+        <sc-if value="{{ noCards }}" hint-placeholder-val="{{ false }}">
+          <div style="flex:1;display:flex;align-items:center;justify-content:center;padding-bottom:96px;font-size:13px;color:#a48b96">아직 응답한 친구가 없어요</div>
+        </sc-if>
+      </div>
+    </sc-if>
+
+    <!-- ============ 모두 ============ -->
+    <sc-if value="{{ tabAll }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="모두" style="position:absolute;inset:0;display:flex;flex-direction:column">
+        <div style="padding:56px 26px 4px;text-align:center">
+          <div style="font-family:Poppins,sans-serif;font-weight:600;font-size:22px;color:#4a3540">모두</div>
+          <div style="margin-top:5px;font-size:12px;color:#8a6f7d">"{{ topic }}"</div>
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:14px 20px 100px">
+          <div style="display:flex;gap:12px;align-items:flex-start">
+            <div style="flex:1;display:flex;flex-direction:column;gap:14px">
+              <sc-for list="{{ pubColA }}" as="p" hint-placeholder-count="3">
+                <div>
+                  <div onClick="{{ p.onTap }}" style="position:relative;width:100%;aspect-ratio:{{ p.ratio }};border-radius:18px;overflow:hidden;cursor:pointer;box-shadow:0 10px 26px rgba(150,90,130,.14);border:1px solid rgba(255,255,255,.7)">
+                    <div style="position:absolute;inset:0;display:grid;grid-template-columns:{{ p.gridCols }};gap:2px;filter:blur({{ p.blurPx }});transform:scale({{ p.zoomScale }});transition:filter {{ revealDur }} cubic-bezier(0.22,1,0.36,1)">
+                      <sc-for list="{{ p.tiles }}" as="tl" hint-placeholder-count="1">
+                        <div style="background:{{ tl.grad }};filter:{{ p.tint }}"></div>
+                      </sc-for>
+                    </div>
+                    <sc-if value="{{ p.hidden }}" hint-placeholder-val="{{ true }}">
+                      <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:{{ p.ovOp }};transition:opacity .3s;pointer-events:none">
+                        <div style="padding:6px 12px;border-radius:999px;background:rgba(58,42,52,.7);color:#fff;font:500 10.5px 'Noto Sans KR'">탭해서 풀기</div>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ p.revealed }}" hint-placeholder-val="{{ false }}">
+                      <div style="position:absolute;left:9px;bottom:9px;font:500 9px ui-monospace,Menlo,monospace;color:rgba(60,35,20,.6);background:rgba(255,255,255,.6);padding:3px 7px;border-radius:6px">[ {{ p.label }} ]</div>
+                    </sc-if>
+                  </div>
+                  <div style="margin-top:6px;padding:0 3px;display:flex;align-items:baseline;justify-content:space-between;gap:8px">
+                    <div onClick="{{ p.openProfile }}" style="cursor:pointer;font-size:11.5px;font-weight:600;color:#3c2c36;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ p.name }}</div>
+                    <div onClick="{{ p.openComments }}" style="flex:none;cursor:pointer;font:500 10.5px 'Noto Sans KR';color:#a48b96">댓글 {{ p.commentTotal }}</div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:14px">
+              <sc-for list="{{ pubColB }}" as="p" hint-placeholder-count="3">
+                <div>
+                  <div onClick="{{ p.onTap }}" style="position:relative;width:100%;aspect-ratio:{{ p.ratio }};border-radius:18px;overflow:hidden;cursor:pointer;box-shadow:0 10px 26px rgba(150,90,130,.14);border:1px solid rgba(255,255,255,.7)">
+                    <div style="position:absolute;inset:0;display:grid;grid-template-columns:{{ p.gridCols }};gap:2px;filter:blur({{ p.blurPx }});transform:scale({{ p.zoomScale }});transition:filter {{ revealDur }} cubic-bezier(0.22,1,0.36,1)">
+                      <sc-for list="{{ p.tiles }}" as="tl" hint-placeholder-count="1">
+                        <div style="background:{{ tl.grad }};filter:{{ p.tint }}"></div>
+                      </sc-for>
+                    </div>
+                    <sc-if value="{{ p.hidden }}" hint-placeholder-val="{{ true }}">
+                      <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:{{ p.ovOp }};transition:opacity .3s;pointer-events:none">
+                        <div style="padding:6px 12px;border-radius:999px;background:rgba(58,42,52,.7);color:#fff;font:500 10.5px 'Noto Sans KR'">탭해서 풀기</div>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ p.revealed }}" hint-placeholder-val="{{ false }}">
+                      <div style="position:absolute;left:9px;bottom:9px;font:500 9px ui-monospace,Menlo,monospace;color:rgba(60,35,20,.6);background:rgba(255,255,255,.6);padding:3px 7px;border-radius:6px">[ {{ p.label }} ]</div>
+                    </sc-if>
+                  </div>
+                  <div style="margin-top:6px;padding:0 3px;display:flex;align-items:baseline;justify-content:space-between;gap:8px">
+                    <div onClick="{{ p.openProfile }}" style="cursor:pointer;font-size:11.5px;font-weight:600;color:#3c2c36;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ p.name }}</div>
+                    <div onClick="{{ p.openComments }}" style="flex:none;cursor:pointer;font:500 10.5px 'Noto Sans KR';color:#a48b96">댓글 {{ p.commentTotal }}</div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ============ 친구 ============ -->
+    <sc-if value="{{ tabFriends }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="친구" style="position:absolute;inset:0;display:flex;flex-direction:column">
+        <div style="padding:56px 26px 0">
+          <div style="text-align:center;font-family:Poppins,sans-serif;font-weight:600;font-size:22px;color:#4a3540">친구 <span style="font-size:14px;color:#b06a92">{{ friendCount }}</span></div>
+          <input value="{{ search }}" onChange="{{ setSearch }}" placeholder="이름 또는 아이디 검색" style="margin-top:12px;width:100%;box-sizing:border-box;border:1px solid rgba(74,53,64,.14);background:rgba(255,255,255,.8);border-radius:999px;padding:11px 16px;font:400 13px 'Noto Sans KR';color:#3c2c36;outline:none">
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:14px 22px 100px;display:flex;flex-direction:column;gap:18px">
+          <sc-if value="{{ hasReqs }}" hint-placeholder-val="{{ true }}">
+            <div>
+              <div style="padding:0 4px 8px;font-size:12px;font-weight:700;color:#3c2c36">받은 친구 요청</div>
+              <sc-for list="{{ reqRows }}" as="r" hint-placeholder-count="1">
+                <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:18px;background:rgba(224,121,180,.1);border:1px solid rgba(224,121,180,.18)">
+                  <div style="flex:none;width:42px;height:42px;border-radius:50%;background:{{ r.color }};color:#fff;display:flex;align-items:center;justify-content:center;font:600 15px 'Noto Sans KR'">{{ r.initial }}</div>
+                  <div style="flex:1;min-width:0">
+                    <div style="font-size:13.5px;font-weight:600;color:#3c2c36">{{ r.name }}</div>
+                    <div style="font-size:11px;color:#8a6f7d">@{{ r.idname }} · {{ r.mutual }}</div>
+                  </div>
+                  <button onClick="{{ r.accept }}" style="flex:none;border:none;cursor:pointer;padding:8px 13px;border-radius:999px;background:#4a3540;color:#fff;font:600 11.5px 'Noto Sans KR'">수락</button>
+                  <button onClick="{{ r.decline }}" style="flex:none;border:1px solid rgba(74,53,64,.18);cursor:pointer;padding:8px 13px;border-radius:999px;background:rgba(255,255,255,.7);color:#4a3540;font:600 11.5px 'Noto Sans KR'">거절</button>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+          <div>
+            <div style="padding:0 4px 8px;font-size:12px;font-weight:700;color:#3c2c36">추천 친구</div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <sc-for list="{{ recRows }}" as="r" hint-placeholder-count="3">
+                <div style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:18px;background:rgba(255,255,255,.62);border:1px solid rgba(255,255,255,.8)">
+                  <div style="flex:none;width:42px;height:42px;border-radius:50%;background:{{ r.color }};color:#fff;display:flex;align-items:center;justify-content:center;font:600 15px 'Noto Sans KR'">{{ r.initial }}</div>
+                  <div style="flex:1;min-width:0">
+                    <div style="font-size:13.5px;font-weight:600;color:#3c2c36">{{ r.name }}</div>
+                    <div style="font-size:11px;color:#8a6f7d">@{{ r.idname }} · {{ r.mutual }}</div>
+                  </div>
+                  <button onClick="{{ r.onAdd }}" style="flex: none; border: {{ r.addBorder }}; cursor: pointer; padding: 8px 14px; border-radius: 999px; background: {{ r.addBg }}; color: #FFFFFF; font: 600 11.5px 'Noto Sans KR'; transition: all .2s">{{ r.addLabel }}</button>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <div>
+            <div style="padding:0 4px 8px;font-size:12px;font-weight:700;color:#3c2c36">내 친구</div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <sc-for list="{{ friendRows }}" as="f" hint-placeholder-count="4">
+                <div style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:18px;background:rgba(255,255,255,.62);border:1px solid rgba(255,255,255,.8)">
+                  <div onClick="{{ f.openProfile }}" style="flex:none;cursor:pointer;width:42px;height:42px;border-radius:50%;background:{{ f.color }};color:#fff;display:flex;align-items:center;justify-content:center;font:600 15px 'Noto Sans KR'">{{ f.initial }}</div>
+                  <div onClick="{{ f.openProfile }}" style="flex:1;min-width:0;cursor:pointer">
+                    <div style="font-size:13.5px;font-weight:600;color:#3c2c36">{{ f.name }}</div>
+                    <div style="font-size: 11px; color: #8a6f7d">@{{ f.idname }}</div>
+                  </div>
+                  <button onClick="{{ f.openActions }}" aria-label="더보기" style="flex:none;border:none;cursor:pointer;width:32px;height:32px;border-radius:50%;background:transparent;color:#a48b96;font:600 16px 'Noto Sans KR'">⋯</button>
+                </div>
+              </sc-for>
+              <sc-if value="{{ noFriendResults }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:18px 0;text-align:center;font-size:12px;color:#a48b96">검색 결과가 없어요</div>
+              </sc-if>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ============ 마이 ============ -->
+    <sc-if value="{{ tabMy }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="마이" style="position:absolute;inset:0;display:flex;flex-direction:column">
+        <div style="padding:56px 26px 0;text-align:center;font-family:Poppins,sans-serif;font-weight:600;font-size:22px;color:#4a3540">마이</div>
+        <div style="padding:16px 26px 0;display:flex;align-items:center;gap:14px">
+          <div style="width:58px;height:58px;border-radius:50%;background:{{ myBg }};color:#fff;display:flex;align-items:center;justify-content:center;font:600 20px 'Noto Sans KR'">{{ myAvatar }}</div>
+          <div style="flex:1">
+            <div style="font-size:18px;font-weight:700;color:#3c2c36">{{ myName }}</div>
+            <div style="font:500 12px Quicksand,sans-serif;color:#8a6f7d">@{{ myId }} · 친구 {{ friendCount }}명</div>
+          </div>
+          <button onClick="{{ openProfEdit }}" style="flex:none;border:1px solid rgba(74,53,64,.18);cursor:pointer;padding:8px 14px;border-radius:999px;background:rgba(255,255,255,.7);color:#4a3540;font:600 11.5px 'Noto Sans KR';white-space:nowrap">프로필 수정</button>
+          <button onClick="{{ openSettings }}" aria-label="설정" style="flex:none;border:1px solid rgba(74,53,64,.18);cursor:pointer;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.7);display:flex;align-items:center;justify-content:center">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#4a3540" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+          </button>
+        </div>
+        <div style="margin:18px 22px 0;padding:16px 18px;border-radius:20px;background:rgba(255,255,255,.62);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.78)">
+          <div style="display:flex;align-items:baseline;gap:8px">
+            <div style="font:700 26px Quicksand,sans-serif;color:#3c2c36">{{ visitors }}</div>
+            <div style="font-size:13px;font-weight:600;color:#5c4a54">명이 오늘 내 응답을 열어봤어요</div>
+          </div>
+          <div style="margin-top:4px;font-size:11.5px;color:#a48b96">방문자 수는 나만 볼 수 있어요</div>
+        </div>
+        <div style="padding:20px 26px 8px;display:flex;align-items:baseline;justify-content:space-between">
+          <div style="font-size:13px;font-weight:700;color:#3c2c36">내 허브 응답</div>
+          <div style="font-size:10.5px;color:#a48b96">탭: 주제 보기 · 길게 누르기: 크게 보기</div>
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:0 22px 100px">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+            <sc-for list="{{ myGrid }}" as="g" hint-placeholder-count="5">
+              <div onClick="{{ g.onTap }}" onPointerDown="{{ g.onDown }}" onPointerUp="{{ g.onUp }}" onPointerLeave="{{ g.onUp }}" style="position:relative;aspect-ratio:1;border-radius:14px;overflow:hidden;cursor:pointer;box-shadow:{{ g.ring }};transition:box-shadow .15s;user-select:none;-webkit-user-select:none">
+                <div style="position:absolute;inset:0;background:{{ g.grad }};filter:blur({{ g.blurPx }});transform:scale(1.15)"></div>
+                <div style="position:absolute;left:7px;bottom:7px;font:600 9.5px 'Noto Sans KR';color:#4a3540;background:rgba(255,255,255,.72);padding:3px 7px;border-radius:6px">{{ g.tag }}</div>
+              </div>
+            </sc-for>
+          </div>
+          <sc-if value="{{ notPosted }}" hint-placeholder-val="{{ false }}">
+            <div style="margin-top:14px;font-size:12px;color:#a48b96;text-align:center">오늘의 허브에 아직 응답하지 않았어요</div>
+          </sc-if>
+        </div>
+        <sc-if value="{{ mySelOn }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;left:16px;right:16px;bottom:96px;padding:14px 18px;border-radius:18px;background:rgba(255,251,253,.96);box-shadow:0 12px 34px rgba(80,40,65,.2);display:flex;align-items:center;justify-content:space-between;gap:12px;animation:riseIn .25s ease both">
+            <div>
+              <div style="font-size:10.5px;font-weight:600;letter-spacing:.1em;color:#b06a92">{{ mySelDate }} 허브</div>
+              <div style="margin-top:3px;font-size:14.5px;font-weight:700;color:#3c2c36">{{ mySelTopic }}</div>
+            </div>
+            <button onClick="{{ mySelClose }}" style="flex:none;border:none;cursor:pointer;width:30px;height:30px;border-radius:50%;background:rgba(74,53,64,.08);color:#4a3540;font-size:13px">✕</button>
+          </div>
+        </sc-if>
+      </div>
+    </sc-if>
+
+    <!-- ============ 탭 바 ============ -->
+    <sc-if value="{{ inApp }}" hint-placeholder-val="{{ true }}">
+      <div style="position:absolute;left:0;right:0;bottom:0;display:flex;background:rgba(255,255,255,.82);backdrop-filter:blur(16px);border-top:1px solid rgba(255,255,255,.95);padding:10px 8px 24px">
+        <div onClick="{{ tHome.onTap }}" aria-label="오늘" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;padding:2px 0">
+          <div style="width:5px;height:5px;border-radius:50%;background:#e079b4;opacity:{{ tHome.dotOp }};transition:opacity .2s"></div>
+          <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="{{ tHome.color }}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="transition:stroke .2s"><circle cx="12" cy="12" r="4"></circle><line x1="12" y1="2" x2="12" y2="4.5"></line><line x1="12" y1="19.5" x2="12" y2="22"></line><line x1="4.9" y1="4.9" x2="6.7" y2="6.7"></line><line x1="17.3" y1="17.3" x2="19.1" y2="19.1"></line><line x1="2" y1="12" x2="4.5" y2="12"></line><line x1="19.5" y1="12" x2="22" y2="12"></line><line x1="4.9" y1="19.1" x2="6.7" y2="17.3"></line><line x1="17.3" y1="6.7" x2="19.1" y2="4.9"></line></svg>
+        </div>
+        <div onClick="{{ tAll.onTap }}" aria-label="모두" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;padding:2px 0">
+          <div style="width:5px;height:5px;border-radius:50%;background:#e079b4;opacity:{{ tAll.dotOp }};transition:opacity .2s"></div>
+          <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="{{ tAll.color }}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="transition:stroke .2s"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect></svg>
+        </div>
+        <div onClick="{{ tFr.onTap }}" aria-label="친구" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;padding:2px 0">
+          <div style="width:5px;height:5px;border-radius:50%;background:#e079b4;opacity:{{ tFr.dotOp }};transition:opacity .2s"></div>
+          <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="{{ tFr.color }}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="transition:stroke .2s"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+        </div>
+        <div onClick="{{ tMy.onTap }}" aria-label="마이" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;padding:2px 0">
+          <div style="width:5px;height:5px;border-radius:50%;background:#e079b4;opacity:{{ tMy.dotOp }};transition:opacity .2s"></div>
+          <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="{{ tMy.color }}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="transition:stroke .2s"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ============ 업로드 플로우 ============ -->
+    <sc-if value="{{ upOpen }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="업로드" style="position:absolute;inset:0;display:flex;flex-direction:column;background:linear-gradient(rgba(255,255,255,.8),rgba(255,255,255,.8)),url('uploads/reference-1783339192851.png') center/cover;animation:riseIn .3s ease both">
+        <div style="padding:56px 22px 0;display:flex;align-items:center;justify-content:space-between">
+          <button onClick="{{ upBackFn }}" style="border:none;cursor:pointer;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.75);backdrop-filter:blur(8px);color:#4a3540;font:600 15px 'Noto Sans KR'">←</button>
+          <div style="font-size:14px;font-weight:700;color:#3c2c36">{{ upTitle }}</div>
+          <div style="width:36px"></div>
+        </div>
+        <div style="padding:12px 26px 0;text-align:center">
+          <div style="display:inline-block;font-size:10.5px;font-weight:600;letter-spacing:.12em;color:#b06a92;background:rgba(255,255,255,.7);padding:5px 12px;border-radius:999px">{{ topic }}</div>
+        </div>
+
+        <sc-if value="{{ stepPick }}" hint-placeholder-val="{{ true }}">
+          <div style="flex:1;overflow-y:auto;padding:18px 22px 110px">
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+              <div style="aspect-ratio:1;border-radius:16px;background:rgba(255,255,255,.65);backdrop-filter:blur(8px);border:1.5px dashed rgba(74,53,64,.3);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;color:#8a6f7d;cursor:pointer">
+                <div style="font-size:20px;line-height:1">＋</div>
+                <div style="font:600 10.5px 'Noto Sans KR'">카메라</div>
+              </div>
+              <sc-for list="{{ gallery }}" as="g" hint-placeholder-count="8">
+                <div onClick="{{ g.onPick }}" style="position:relative;aspect-ratio:1;border-radius:16px;background:{{ g.grad }};cursor:pointer;box-shadow:inset 0 0 0 3px {{ g.border }};transition:box-shadow .15s">
+                  <div style="position:absolute;left:6px;bottom:6px;font:500 9px 'Noto Sans KR';color:rgba(60,35,20,.6);background:rgba(255,255,255,.6);padding:2px 6px;border-radius:5px">{{ g.label }}</div>
+                  <div style="position:absolute;top:7px;right:7px;width:20px;height:20px;border-radius:50%;background:#4a3540;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;opacity:{{ g.ckOp }};transition:opacity .15s">✓</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <div style="position:absolute;left:0;right:0;bottom:0;padding:14px 22px 34px;background:linear-gradient(to top,rgba(255,250,253,.95),rgba(255,250,253,0))">
+            <button onClick="{{ nextFromPick }}" style="width:100%;border:none;cursor:{{ nextCursor }};padding:16px;border-radius:999px;background:{{ nextBg }};color:{{ nextColor }};font:600 14.5px 'Noto Sans KR';transition:all .2s">다음</button>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ stepEdit }}" hint-placeholder-val="{{ false }}">
+          <div style="flex:1;overflow-y:auto;padding:16px 24px 30px;display:flex;flex-direction:column;gap:14px">
+            <div style="width:{{ upW }};margin:0 auto;position:relative;aspect-ratio:{{ upRatio }};border-radius:20px;overflow:hidden;box-shadow:0 14px 36px rgba(150,90,130,.2)">
+              <div style="position:absolute;inset:0;display:grid;grid-template-columns:{{ upGridCols }};gap:2px;transform:scale({{ upZoomScale }});transition:transform .15s">
+                <sc-for list="{{ upTiles }}" as="tl" hint-placeholder-count="1">
+                  <div style="background:{{ tl.grad }};filter:{{ upTint }};transition:filter .2s"></div>
+                </sc-for>
+              </div>
+            </div>
+            <div>
+              <div style="padding:0 2px 7px;font-size:11.5px;font-weight:700;color:#3c2c36">자르기</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <sc-for list="{{ cropChips }}" as="ch" hint-placeholder-count="4">
+                  <button onClick="{{ ch.onSel }}" style="border:1px solid rgba(74,53,64,.14);cursor:pointer;padding:8px 14px;border-radius:999px;background:{{ ch.bg }};color:{{ ch.color }};font:600 11.5px 'Noto Sans KR';transition:all .15s">{{ ch.label }}</button>
+                </sc-for>
+              </div>
+            </div>
+            <div>
+              <div style="padding:0 2px 7px;font-size:11.5px;font-weight:700;color:#3c2c36">확대 · 축소</div>
+              <div style="display:flex;align-items:center;gap:10px;padding:0 2px">
+                <span style="font-size:11px;color:#a48b96">－</span>
+                <input type="range" min="1" max="1.5" step="0.05" value="{{ upZoom }}" onChange="{{ setZoom }}" style="flex:1;accent-color:#4a3540">
+                <span style="font-size:13px;color:#a48b96">＋</span>
+              </div>
+            </div>
+            <div>
+              <div style="padding:0 2px 7px;font-size:11.5px;font-weight:700;color:#3c2c36">필터</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <sc-for list="{{ filterChips }}" as="ch" hint-placeholder-count="5">
+                  <button onClick="{{ ch.onSel }}" style="border:1px solid rgba(74,53,64,.14);cursor:pointer;padding:8px 14px;border-radius:999px;background:{{ ch.bg }};color:{{ ch.color }};font:600 11.5px 'Noto Sans KR';transition:all .15s">{{ ch.label }}</button>
+                </sc-for>
+              </div>
+            </div>
+            <div>
+              <div style="padding:0 2px 7px;font-size:11.5px;font-weight:700;color:#3c2c36">화면 분할</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <sc-for list="{{ splitChips }}" as="ch" hint-placeholder-count="3">
+                  <button onClick="{{ ch.onSel }}" style="border:1px solid rgba(74,53,64,.14);cursor:pointer;padding:8px 14px;border-radius:999px;background:{{ ch.bg }};color:{{ ch.color }};font:600 11.5px 'Noto Sans KR';transition:all .15s">{{ ch.label }}</button>
+                </sc-for>
+              </div>
+            </div>
+            <button onClick="{{ nextFromEdit }}" style="border:none;cursor:pointer;padding:15px;border-radius:999px;background:#4a3540;color:#fff;font:600 14.5px 'Noto Sans KR';box-shadow:0 10px 24px rgba(74,53,64,.3)">다음</button>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ stepCap }}" hint-placeholder-val="{{ false }}">
+          <div style="flex:1;overflow-y:auto;padding:18px 26px 40px;display:flex;flex-direction:column;gap:13px">
+            <div style="width:{{ upW }};margin:0 auto;position:relative;aspect-ratio:{{ upRatio }};border-radius:22px;overflow:hidden;box-shadow:0 16px 40px rgba(150,90,130,.2)">
+              <div style="position:absolute;inset:0;display:grid;grid-template-columns:{{ upGridCols }};gap:2px;transform:scale({{ upZoomScale }})">
+                <sc-for list="{{ upTiles }}" as="tl" hint-placeholder-count="1">
+                  <div style="background:{{ tl.grad }};filter:{{ upTint }}"></div>
+                </sc-for>
+              </div>
+              <div style="position:absolute;left:12px;bottom:12px;font:500 10.5px ui-monospace,Menlo,monospace;color:rgba(60,35,20,.65);background:rgba(255,255,255,.6);padding:4px 9px;border-radius:7px">[ 사진 · {{ selLabel }} ]</div>
+            </div>
+            <input value="{{ capVal }}" onChange="{{ setCap }}" placeholder="한 줄 남기기 (선택)" style="border:1px solid rgba(74,53,64,.14);background:rgba(255,255,255,.8);border-radius:16px;padding:13px 16px;font:400 13.5px 'Noto Sans KR';color:#3c2c36;outline:none">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-radius:16px;background:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.85)">
+              <div>
+                <div style="font-size:13px;font-weight:600;color:#3c2c36">친구 공개</div>
+                <div style="margin-top:2px;font-size:11px;color:#8a6f7d">오늘 탭에서 내 친구들에게 보여요</div>
+              </div>
+              <div style="font-size:14px">🔒</div>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-radius:16px;background:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.85)">
+              <div>
+                <div style="font-size:13px;font-weight:600;color:#3c2c36">'모두'에도 공개</div>
+                <div style="margin-top:2px;font-size:11px;color:#8a6f7d">동의하면 전체 이용자의 모두 탭에 보여요</div>
+              </div>
+              <div onClick="{{ toggleShare }}" style="position:relative;flex:none;width:46px;height:27px;border-radius:999px;background:{{ shareBg }};cursor:pointer;transition:background .2s">
+                <div style="position:absolute;top:3px;left:{{ shareKnob }};width:21px;height:21px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.18);transition:left .2s"></div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-radius:16px;background:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.85)">
+              <div>
+                <div style="font-size:13px;font-weight:600;color:#3c2c36">내 룸에 저장</div>
+                <div style="margin-top:2px;font-size:11px;color:#8a6f7d">허브가 닫혀도 내 아카이브에 남아요</div>
+              </div>
+              <div onClick="{{ toggleRoom }}" style="position:relative;flex:none;width:46px;height:27px;border-radius:999px;background:{{ roomBg }};cursor:pointer;transition:background .2s">
+                <div style="position:absolute;top:3px;left:{{ knobLeft }};width:21px;height:21px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.18);transition:left .2s"></div>
+              </div>
+            </div>
+            <button onClick="{{ publish }}" style="border:none;cursor:pointer;padding:15px;border-radius:999px;background:#4a3540;color:#fff;font:600 14.5px 'Noto Sans KR';box-shadow:0 10px 24px rgba(74,53,64,.3)">오늘의 허브에 올리기</button>
+          </div>
+        </sc-if>
+      </div>
+    </sc-if>
+
+    <!-- ============ 친구 프로필 ============ -->
+    <sc-if value="{{ fpOpen }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="친구 프로필" style="position:absolute;inset:0;display:flex;flex-direction:column;background:linear-gradient(rgba(255,255,255,.82),rgba(255,255,255,.82)),url('uploads/reference-1783339192851.png') center/cover;animation:riseIn .3s ease both">
+        <div style="padding:56px 22px 0;display:flex;align-items:center;justify-content:space-between">
+          <button onClick="{{ fpClose }}" style="border:none;cursor:pointer;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.75);color:#4a3540;font:600 15px 'Noto Sans KR'">←</button>
+          <div style="font-size:14px;font-weight:700;color:#3c2c36">친구 프로필</div>
+          <div style="width:36px"></div>
+        </div>
+        <div style="padding:22px 26px 0;display:flex;align-items:center;gap:14px">
+          <div style="width:58px;height:58px;border-radius:50%;background:{{ fpColor }};color:#fff;display:flex;align-items:center;justify-content:center;font:600 20px 'Noto Sans KR'">{{ fpInitial }}</div>
+          <div>
+            <div style="font-size:18px;font-weight:700;color:#3c2c36">{{ fpName }}</div>
+            <div style="font:500 12px Quicksand,sans-serif;color:#8a6f7d">@{{ fpId }} · {{ fpStatus }}</div>
+          </div>
+        </div>
+        <div style="padding:22px 26px 8px;font-size:13px;font-weight:700;color:#3c2c36">{{ fpName }}님의 허브 응답</div>
+        <div style="flex:1;overflow-y:auto;padding:0 22px 40px">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+            <sc-for list="{{ fpGrid }}" as="g" hint-placeholder-count="4">
+              <div onClick="{{ g.onTap }}" style="position:relative;aspect-ratio:1;border-radius:14px;overflow:hidden;cursor:{{ g.cursor }};box-shadow:inset 0 0 0 1px rgba(255,255,255,.5)">
+                <div style="position:absolute;inset:0;background:{{ g.grad }};filter:blur({{ g.blurPx }});transform:scale(1.15);transition:filter .45s"></div>
+                <div style="position:absolute;left:7px;bottom:7px;font:600 9.5px 'Noto Sans KR';color:#4a3540;background:rgba(255,255,255,.72);padding:3px 7px;border-radius:6px">{{ g.tag }}</div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="margin-top:14px;font-size:11.5px;color:#a48b96;text-align:center">오늘의 응답은 탭해서 blur를 풀 수 있어요</div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ============ 공개 계정 프로필 ============ -->
+    <sc-if value="{{ ppfOpen }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="공개 프로필" style="position:absolute;inset:0;display:flex;flex-direction:column;background:linear-gradient(rgba(255,255,255,.82),rgba(255,255,255,.82)),url('uploads/reference-1783339192851.png') center/cover;animation:riseIn .3s ease both">
+        <div style="padding:56px 22px 0;display:flex;align-items:center;justify-content:space-between">
+          <button onClick="{{ ppfClose }}" style="border:none;cursor:pointer;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.75);color:#4a3540;font:600 15px 'Noto Sans KR'">←</button>
+          <div style="font-size:14px;font-weight:700;color:#3c2c36">프로필</div>
+          <div style="width:36px"></div>
+        </div>
+        <div style="padding:22px 26px 0;display:flex;align-items:center;gap:14px">
+          <div style="width:58px;height:58px;border-radius:50%;background:{{ ppfColor }};color:#fff;display:flex;align-items:center;justify-content:center;font:600 20px 'Noto Sans KR'">{{ ppfInitial }}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:18px;font-weight:700;color:#3c2c36">{{ ppfName }}</div>
+            <div style="margin-top:3px;display:flex;align-items:center;gap:7px">
+              <div style="font:500 12px Quicksand,sans-serif;color:#8a6f7d">@{{ ppfId }}</div>
+              <div style="font:600 9.5px 'Noto Sans KR';color:#6aa392;background:rgba(106,163,146,.12);padding:3px 8px;border-radius:999px">공개 계정</div>
+            </div>
+          </div>
+          <button onClick="{{ ppfReq }}" style="flex:none;border:none;cursor:pointer;padding:9px 15px;border-radius:999px;background:{{ ppfReqBg }};color:{{ ppfReqColor }};font:600 11.5px 'Noto Sans KR';transition:all .2s;white-space:nowrap">{{ ppfReqLabel }}</button>
+        </div>
+        <div style="padding:22px 26px 8px;font-size:13px;font-weight:700;color:#3c2c36">{{ ppfName }}님의 허브 응답</div>
+        <div style="flex:1;overflow-y:auto;padding:0 22px 40px">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+            <sc-for list="{{ ppfGrid }}" as="g" hint-placeholder-count="4">
+              <div onClick="{{ g.onTap }}" style="position:relative;aspect-ratio:1;border-radius:14px;overflow:hidden;cursor:{{ g.cursor }};box-shadow:inset 0 0 0 1px rgba(255,255,255,.5)">
+                <div style="position:absolute;inset:0;background:{{ g.grad }};filter:blur({{ g.blurPx }});transform:scale(1.15);transition:filter .45s"></div>
+                <div style="position:absolute;left:7px;bottom:7px;font:600 9.5px 'Noto Sans KR';color:#4a3540;background:rgba(255,255,255,.72);padding:3px 7px;border-radius:6px">{{ g.tag }}</div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="margin-top:14px;font-size:11.5px;color:#a48b96;text-align:center">공개 계정의 지난 허브는 누구나 볼 수 있어요</div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ============ 모두 이용자 프로필 시트 ============ -->
+    <sc-if value="{{ ppOpen }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;inset:0;display:flex;flex-direction:column;justify-content:flex-end">
+        <div onClick="{{ ppClose }}" style="position:absolute;inset:0;background:rgba(58,42,52,.35);backdrop-filter:blur(3px)"></div>
+        <div data-screen-label="이용자 프로필 시트" style="position:relative;display:flex;flex-direction:column;background:rgba(255,251,253,.97);border-radius:28px 28px 0 0;box-shadow:0 -10px 40px rgba(80,40,65,.2);animation:sheetUp .3s cubic-bezier(0.22,1,0.36,1) both;padding-bottom:34px">
+          <div style="width:40px;height:4px;border-radius:999px;background:rgba(74,53,64,.2);margin:12px auto 0"></div>
+          <div style="padding:18px 24px 0;display:flex;align-items:center;gap:14px">
+            <div style="width:52px;height:52px;border-radius:50%;background:{{ ppColor }};color:#fff;display:flex;align-items:center;justify-content:center;font:600 18px 'Noto Sans KR'">{{ ppInitial }}</div>
+            <div style="flex:1">
+              <div style="font-size:16px;font-weight:700;color:#3c2c36">{{ ppName }}</div>
+              <div style="margin-top:3px;display:flex;align-items:center;gap:7px">
+                <div style="font:500 11.5px Quicksand,sans-serif;color:#8a6f7d">@{{ ppId }}</div>
+                <div style="font:600 9.5px 'Noto Sans KR';color:#8a6f7d;background:rgba(74,53,64,.08);padding:3px 8px;border-radius:999px">🔒 비공개 계정</div>
+              </div>
+            </div>
+            <button onClick="{{ ppReq }}" style="flex:none;border:{{ ppReqBorder }};cursor:pointer;padding:9px 16px;border-radius:999px;background:{{ ppReqBg }};color:{{ ppReqColor }};font:600 12px 'Noto Sans KR';transition:all .2s">{{ ppReqLabel }}</button>
+          </div>
+          <div style="margin:16px 24px 0;padding:12px 16px;border-radius:14px;background:rgba(224,121,180,.08);font-size:11.5px;line-height:1.6;color:#8a6f7d">비공개 계정이에요. 프로필과 지난 허브는 친구가 된 후에 볼 수 있어요. 지금은 허브 응답에 댓글만 남길 수 있어요.</div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ============ 프로필 수정 ============ -->
+    <sc-if value="{{ peOpen }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="프로필 수정" style="position:absolute;inset:0;display:flex;flex-direction:column;background:linear-gradient(rgba(255,255,255,.84),rgba(255,255,255,.84)),url('uploads/reference-1783339192851.png') center/cover;animation:riseIn .3s ease both">
+        <div style="padding:56px 22px 0;display:flex;align-items:center;justify-content:space-between">
+          <button onClick="{{ peClose }}" style="border:none;cursor:pointer;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.75);color:#4a3540;font:600 15px 'Noto Sans KR'">←</button>
+          <div style="font-size:14px;font-weight:700;color:#3c2c36">프로필 수정</div>
+          <div style="width:36px"></div>
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:24px 26px 40px;display:flex;flex-direction:column;gap:18px">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:12px">
+            <div style="width:88px;height:88px;border-radius:50%;background:{{ peBg }};color:#fff;display:flex;align-items:center;justify-content:center;font:600 30px 'Noto Sans KR';box-shadow:0 10px 26px rgba(74,53,64,.22)">{{ peAvatar }}</div>
+            <div style="font-size:11px;color:#a48b96">프로필 사진 · 색, 이모지, 앨범 사진으로 꾸며보세요</div>
+            <div style="display:flex;gap:9px">
+              <sc-for list="{{ colorChips }}" as="ch" hint-placeholder-count="5">
+                <div onClick="{{ ch.onSel }}" style="width:32px;height:32px;border-radius:50%;background:{{ ch.c }};cursor:pointer;box-shadow:{{ ch.ring }};transition:box-shadow .15s"></div>
+              </sc-for>
+            </div>
+            <div style="display:flex;gap:8px">
+              <sc-for list="{{ emojiChips }}" as="ch" hint-placeholder-count="5">
+                <div onClick="{{ ch.onSel }}" style="width:36px;height:36px;border-radius:12px;background:{{ ch.bg }};display:flex;align-items:center;justify-content:center;font-size:17px;cursor:pointer;border:1px solid rgba(74,53,64,.1);transition:background .15s">{{ ch.e }}</div>
+              </sc-for>
+            </div>
+            <input value="{{ peEmojiVal }}" onChange="{{ setPeEmojiFree }}" placeholder="키보드로 아무 이모지나 입력해 보세요 🫶" style="width:100%;box-sizing:border-box;text-align:center;border:1px solid rgba(74,53,64,.14);background:rgba(255,255,255,.85);border-radius:14px;padding:11px 14px;font:400 13px 'Noto Sans KR';color:#3c2c36;outline:none">
+            <label style="cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;width:100%;box-sizing:border-box;border:1.5px dashed rgba(74,53,64,.25);border-radius:14px;padding:11px;background:rgba(255,255,255,.6);font:600 12px 'Noto Sans KR';color:#4a3540">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#4a3540" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><path d="M21 15l-5-5L5 21"></path></svg>
+              앨범에서 사진 선택
+              <input type="file" accept="image/*" onChange="{{ pePickPhoto }}" style="display:none">
+            </label>
+            <sc-if value="{{ pePhotoOn }}" hint-placeholder-val="{{ false }}">
+              <div onClick="{{ peClearPhoto }}" style="cursor:pointer;text-align:center;font-size:11px;font-weight:600;color:#b06a92">사진 지우기</div>
+            </sc-if>
+          </div>
+          <div>
+            <div style="padding:0 2px 6px;font-size:11.5px;font-weight:700;color:#3c2c36">이름</div>
+            <input value="{{ peName }}" onChange="{{ setPeName }}" placeholder="이름" style="width:100%;box-sizing:border-box;border:1px solid rgba(74,53,64,.14);background:rgba(255,255,255,.85);border-radius:16px;padding:13px 16px;font:400 13.5px 'Noto Sans KR';color:#3c2c36;outline:none">
+          </div>
+          <div>
+            <div style="padding:0 2px 6px;font-size:11.5px;font-weight:700;color:#3c2c36">아이디</div>
+            <div style="display:flex;align-items:center;gap:6px;border:1px solid rgba(74,53,64,.14);background:rgba(255,255,255,.85);border-radius:16px;padding:0 16px">
+              <span style="font:600 14px Quicksand,sans-serif;color:#b06a92">@</span>
+              <input value="{{ peId }}" onChange="{{ setPeId }}" placeholder="한국어·영어 모두 가능" style="flex:1;border:none;background:transparent;padding:13px 0;font:400 13.5px 'Noto Sans KR';color:#3c2c36;outline:none">
+            </div>
+            <sc-if value="{{ peIdDup }}" hint-placeholder-val="{{ false }}">
+              <div style="margin-top:5px;padding:0 4px;font-size:10.5px;font-weight:600;color:#c04545">이미 사용 중인 아이디예요</div>
+            </sc-if>
+            <sc-if value="{{ peIdFree }}" hint-placeholder-val="{{ true }}">
+              <div style="margin-top:5px;padding:0 4px;font-size:10.5px;color:#a48b96">아이디는 나만 쓰는 고유한 이름이에요 · 한글, 영문, 숫자, _</div>
+            </sc-if>
+          </div>
+          <button onClick="{{ peSave }}" style="border:none;cursor:pointer;padding:15px;border-radius:999px;background:#4a3540;color:#fff;font:600 14.5px 'Noto Sans KR';box-shadow:0 10px 24px rgba(74,53,64,.3)">저장</button>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ============ 친구 액션 시트 ============ -->
+    <sc-if value="{{ asOpen }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;inset:0;display:flex;flex-direction:column;justify-content:flex-end">
+        <div onClick="{{ asClose }}" style="position:absolute;inset:0;background:rgba(58,42,52,.35);backdrop-filter:blur(3px)"></div>
+        <div data-screen-label="친구 관리 시트" style="position:relative;background:rgba(255,251,253,.97);border-radius:28px 28px 0 0;box-shadow:0 -10px 40px rgba(80,40,65,.2);animation:sheetUp .25s cubic-bezier(0.22,1,0.36,1) both;padding:8px 20px 34px">
+          <div style="width:40px;height:4px;border-radius:999px;background:rgba(74,53,64,.2);margin:6px auto 12px"></div>
+          <div style="padding:0 6px 12px;font-size:13.5px;font-weight:700;color:#3c2c36">{{ asName }}님을…</div>
+          <button onClick="{{ asDelete }}" style="width:100%;border:none;cursor:pointer;padding:14px;border-radius:16px;background:rgba(255,255,255,.9);color:#c04545;font:600 13.5px 'Noto Sans KR';margin-bottom:8px;border:1px solid rgba(192,69,69,.15)">친구 삭제</button>
+          <button onClick="{{ asBlock }}" style="width:100%;border:none;cursor:pointer;padding:14px;border-radius:16px;background:rgba(255,255,255,.9);color:#c04545;font:600 13.5px 'Noto Sans KR';margin-bottom:8px;border:1px solid rgba(192,69,69,.15)">차단</button>
+          <button onClick="{{ asClose }}" style="width:100%;border:1px solid rgba(74,53,64,.14);cursor:pointer;padding:14px;border-radius:16px;background:transparent;color:#4a3540;font:600 13.5px 'Noto Sans KR'">취소</button>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ============ 댓글 시트 ============ -->
+    <sc-if value="{{ sheetOpen }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;inset:0;display:flex;flex-direction:column;justify-content:flex-end">
+        <div onClick="{{ closeSheet }}" style="position:absolute;inset:0;background:rgba(58,42,52,.35);backdrop-filter:blur(3px)"></div>
+        <div data-screen-label="댓글 시트" style="position:relative;max-height:70%;display:flex;flex-direction:column;background:rgba(255,251,253,.97);border-radius:28px 28px 0 0;box-shadow:0 -10px 40px rgba(80,40,65,.2);animation:sheetUp .3s cubic-bezier(0.22,1,0.36,1) both">
+          <div style="width:40px;height:4px;border-radius:999px;background:rgba(74,53,64,.2);margin:12px auto 0"></div>
+          <div style="padding:12px 24px 6px;font-size:14px;font-weight:700;color:#3c2c36">{{ sheetName }}님의 응답에 남긴 댓글</div>
+          <div style="flex:1;overflow-y:auto;padding:6px 20px 12px;display:flex;flex-direction:column;gap:8px;min-height:120px">
+            <sc-if value="{{ sheetEmpty }}" hint-placeholder-val="{{ false }}">
+              <div style="padding:26px 0;text-align:center;font-size:12.5px;color:#a48b96">아직 댓글이 없어요. 첫 마디를 남겨보세요</div>
+            </sc-if>
+            <sc-for list="{{ sheetComments }}" as="c" hint-placeholder-count="2">
+              <div style="align-self:flex-start;max-width:85%;padding:10px 14px;border-radius:16px;background:{{ c.bg }};border:1px solid rgba(74,53,64,.07)">
+                <div style="font-size:11px;font-weight:600;color:#b06a92">{{ c.name }}</div>
+                <div style="margin-top:2px;font-size:13px;color:#3c2c36;line-height:1.5">{{ c.text }}</div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="padding:10px 16px 30px;display:flex;gap:8px;align-items:center;border-top:1px solid rgba(74,53,64,.08)">
+            <input value="{{ draft }}" onChange="{{ setDraft }}" onKeyDown="{{ draftKey }}" placeholder="댓글 남기기" style="flex:1;border:1px solid rgba(74,53,64,.14);background:#fff;border-radius:999px;padding:12px 16px;font:400 13px 'Noto Sans KR';color:#3c2c36;outline:none">
+            <div style="flex:none;font:500 10.5px Quicksand,sans-serif;color:#a48b96">{{ draftCount }}</div>
+            <button onClick="{{ sendComment }}" style="flex:none;border:none;cursor:pointer;width:42px;height:42px;border-radius:50%;background:#4a3540;color:#fff;font-size:15px">↑</button>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ============ 큰 화면 뷰어 ============ -->
+    <sc-if value="{{ vwOpen }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="사진 크게 보기" onClick="{{ vwClose }}" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:rgba(24,15,21,.93);animation:fadeIn .25s ease both;cursor:pointer">
+        <div style="width:320px;aspect-ratio:3/4;border-radius:24px;background:{{ vwGrad }};box-shadow:0 24px 60px rgba(0,0,0,.4)"></div>
+        <div style="text-align:center">
+          <div style="font-size:11px;font-weight:600;letter-spacing:.12em;color:#e6a8cc">{{ vwDate }} 허브</div>
+          <div style="margin-top:5px;font-size:17px;font-weight:600;color:#fff">{{ vwTopic }}</div>
+        </div>
+        <div style="font-size:11px;color:rgba(255,255,255,.55)">화면을 탭하면 닫혀요</div>
+      </div>
+    </sc-if>
+
+    <!-- ============ 설정 ============ -->
+    <sc-if value="{{ stOpen }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="설정" style="position:absolute;inset:0;display:flex;flex-direction:column;background:linear-gradient(rgba(255,255,255,.84),rgba(255,255,255,.84)),url('uploads/reference-1783339192851.png') center/cover;animation:riseIn .3s ease both">
+        <div style="padding:56px 22px 0;display:flex;align-items:center;justify-content:space-between">
+          <button onClick="{{ stClose }}" style="border:none;cursor:pointer;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.75);color:#4a3540;font:600 15px 'Noto Sans KR'">←</button>
+          <div style="font-size:14px;font-weight:700;color:#3c2c36">설정</div>
+          <div style="width:36px"></div>
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:22px 22px 40px;display:flex;flex-direction:column;gap:16px">
+          <div style="display:flex;align-items:center;gap:13px;padding:14px 16px;border-radius:20px;background:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.85)">
+            <div style="flex:none;width:46px;height:46px;border-radius:50%;background:{{ myBg }};color:#fff;display:flex;align-items:center;justify-content:center;font:600 17px 'Noto Sans KR'">{{ myAvatar }}</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:14px;font-weight:700;color:#3c2c36">{{ myName }}</div>
+              <div style="font:500 11.5px Quicksand,sans-serif;color:#8a6f7d">@{{ myId }}</div>
+            </div>
+          </div>
+          <div>
+            <div style="padding:0 6px 8px;font-size:11.5px;font-weight:700;color:#8a6f7d">앱</div>
+            <div style="border-radius:20px;background:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.85);overflow:hidden">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px">
+                <div>
+                  <div style="font-size:13px;font-weight:600;color:#3c2c36">알림</div>
+                  <div style="margin-top:2px;font-size:11px;color:#8a6f7d">새 허브 주제와 친구 소식을 받아요</div>
+                </div>
+                <div onClick="{{ toggleNotif }}" style="position:relative;flex:none;width:46px;height:27px;border-radius:999px;background:{{ notifBg }};cursor:pointer;transition:background .2s">
+                  <div style="position:absolute;top:3px;left:{{ notifKnob }};width:21px;height:21px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.18);transition:left .2s"></div>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-top:1px solid rgba(74,53,64,.07)">
+                <div>
+                  <div style="font-size:13px;font-weight:600;color:#3c2c36">공개 계정</div>
+                  <div style="margin-top:2px;font-size:11px;color:#8a6f7d">누구나 내 프로필과 지난 허브를 볼 수 있어요</div>
+                </div>
+                <div onClick="{{ togglePublic }}" style="position:relative;flex:none;width:46px;height:27px;border-radius:999px;background:{{ pubBg }};cursor:pointer;transition:background .2s">
+                  <div style="position:absolute;top:3px;left:{{ pubKnob }};width:21px;height:21px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.18);transition:left .2s"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div style="padding:0 6px 8px;font-size:11.5px;font-weight:700;color:#8a6f7d">계정</div>
+            <div style="border-radius:20px;background:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.85);overflow:hidden">
+              <div onClick="{{ openLogout }}" style="display:flex;align-items:center;justify-content:space-between;padding:15px 16px;cursor:pointer;border-bottom:1px solid rgba(74,53,64,.07)">
+                <div style="font-size:13px;font-weight:600;color:#3c2c36">로그아웃</div>
+                <div style="font-size:13px;color:#b3a2ab">›</div>
+              </div>
+              <div onClick="{{ goLeave }}" style="display:flex;align-items:center;justify-content:space-between;padding:15px 16px;cursor:pointer">
+                <div style="font-size:13px;font-weight:600;color:#c04545">회원 탈퇴</div>
+                <div style="font-size:13px;color:#b3a2ab">›</div>
+              </div>
+            </div>
+          </div>
+          <div style="text-align:center;font:500 10.5px Quicksand,sans-serif;color:#c4b4bc">blur 1.0.0</div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ============ 로그아웃 확인 시트 ============ -->
+    <sc-if value="{{ loOpen }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;inset:0;display:flex;flex-direction:column;justify-content:flex-end">
+        <div onClick="{{ loClose }}" style="position:absolute;inset:0;background:rgba(58,42,52,.35);backdrop-filter:blur(3px)"></div>
+        <div data-screen-label="로그아웃 시트" style="position:relative;background:rgba(255,251,253,.97);border-radius:28px 28px 0 0;box-shadow:0 -10px 40px rgba(80,40,65,.2);animation:sheetUp .25s cubic-bezier(0.22,1,0.36,1) both;padding:8px 20px 34px">
+          <div style="width:40px;height:4px;border-radius:999px;background:rgba(74,53,64,.2);margin:6px auto 14px"></div>
+          <div style="padding:0 6px 4px;font-size:15px;font-weight:700;color:#3c2c36">로그아웃 할까요?</div>
+          <div style="padding:0 6px 16px;font-size:12px;color:#8a6f7d">다시 로그인하면 그대로 이어서 쓸 수 있어요</div>
+          <button onClick="{{ doLogout }}" style="width:100%;border:none;cursor:pointer;padding:15px;border-radius:16px;background:#4a3540;color:#fff;font:600 13.5px 'Noto Sans KR';margin-bottom:8px">로그아웃</button>
+          <button onClick="{{ loClose }}" style="width:100%;border:1px solid rgba(74,53,64,.14);cursor:pointer;padding:14px;border-radius:16px;background:transparent;color:#4a3540;font:600 13.5px 'Noto Sans KR'">취소</button>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ============ 회원 탈퇴 ============ -->
+    <sc-if value="{{ lvOpen }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="회원 탈퇴" style="position:absolute;inset:0;display:flex;flex-direction:column;background:linear-gradient(rgba(255,255,255,.86),rgba(255,255,255,.86)),url('uploads/reference-1783339192851.png') center/cover;animation:riseIn .3s ease both">
+        <div style="padding:56px 22px 0;display:flex;align-items:center;justify-content:space-between">
+          <button onClick="{{ lvBack }}" style="border:none;cursor:pointer;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.75);color:#4a3540;font:600 15px 'Noto Sans KR'">←</button>
+          <div style="font-size:14px;font-weight:700;color:#3c2c36">회원 탈퇴</div>
+          <div style="width:36px"></div>
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:20px 24px 40px;display:flex;flex-direction:column;gap:16px">
+          <div style="padding:16px 18px;border-radius:20px;background:rgba(192,69,69,.07);border:1px solid rgba(192,69,69,.16)">
+            <div style="font-size:13.5px;font-weight:700;color:#c04545">탈퇴하면 모두 사라져요</div>
+            <div style="margin-top:8px;display:flex;flex-direction:column;gap:5px;font-size:12px;line-height:1.6;color:#8a6f7d">
+              <div>· 허브 응답과 룸에 저장한 사진</div>
+              <div>· 친구 {{ friendCount }}명과의 연결</div>
+              <div>· 남긴 댓글과 방문 기록</div>
+            </div>
+            <div style="margin-top:10px;font-size:11px;font-weight:600;color:#c04545">삭제된 데이터는 복구할 수 없어요</div>
+          </div>
+          <div>
+            <div style="padding:0 4px 8px;font-size:12px;font-weight:700;color:#3c2c36">떠나는 이유를 알려주세요 <span style="font-weight:400;color:#a48b96">(선택)</span></div>
+            <div style="display:flex;flex-direction:column;gap:7px">
+              <sc-for list="{{ lvReasons }}" as="r" hint-placeholder-count="4">
+                <div onClick="{{ r.onSel }}" style="display:flex;align-items:center;gap:11px;padding:12px 15px;border-radius:16px;background:{{ r.bg }};border:1px solid {{ r.border }};cursor:pointer;transition:all .15s">
+                  <div style="flex:none;width:18px;height:18px;border-radius:50%;border:2px solid {{ r.dotBorder }};display:flex;align-items:center;justify-content:center">
+                    <div style="width:9px;height:9px;border-radius:50%;background:#4a3540;opacity:{{ r.dotOp }};transition:opacity .15s"></div>
+                  </div>
+                  <div style="font-size:12.5px;font-weight:500;color:#3c2c36">{{ r.label }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <div onClick="{{ lvToggle }}" style="display:flex;align-items:center;gap:11px;padding:13px 15px;border-radius:16px;background:rgba(255,255,255,.7);border:1px solid rgba(74,53,64,.1);cursor:pointer">
+            <div style="flex:none;width:20px;height:20px;border-radius:7px;background:{{ agreeBg }};border:1.5px solid {{ agreeBorder }};display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;transition:all .15s">{{ agreeCk }}</div>
+            <div style="font-size:12.5px;font-weight:600;color:#3c2c36">모든 데이터가 삭제되는 것을 확인했어요</div>
+          </div>
+          <button onClick="{{ lvNext }}" style="border:none;cursor:{{ lvCursor }};padding:15px;border-radius:999px;background:{{ lvBg }};color:{{ lvColor }};font:600 14px 'Noto Sans KR';transition:all .2s">탈퇴하기</button>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ============ 탈퇴 최종 확인 시트 ============ -->
+    <sc-if value="{{ lvcOpen }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;inset:0;display:flex;flex-direction:column;justify-content:flex-end">
+        <div onClick="{{ lvcClose }}" style="position:absolute;inset:0;background:rgba(58,42,52,.4);backdrop-filter:blur(3px)"></div>
+        <div data-screen-label="탈퇴 확인 시트" style="position:relative;background:rgba(255,251,253,.97);border-radius:28px 28px 0 0;box-shadow:0 -10px 40px rgba(80,40,65,.2);animation:sheetUp .25s cubic-bezier(0.22,1,0.36,1) both;padding:8px 20px 34px">
+          <div style="width:40px;height:4px;border-radius:999px;background:rgba(74,53,64,.2);margin:6px auto 14px"></div>
+          <div style="padding:0 6px 4px;font-size:15px;font-weight:700;color:#3c2c36">정말 탈퇴할까요?</div>
+          <div style="padding:0 6px 16px;font-size:12px;color:#8a6f7d">{{ myName }}님의 모든 기록이 즉시 삭제돼요</div>
+          <button onClick="{{ doLeave }}" style="width:100%;border:none;cursor:pointer;padding:15px;border-radius:16px;background:#c04545;color:#fff;font:600 13.5px 'Noto Sans KR';margin-bottom:8px">탈퇴하기</button>
+          <button onClick="{{ lvcClose }}" style="width:100%;border:1px solid rgba(74,53,64,.14);cursor:pointer;padding:14px;border-radius:16px;background:transparent;color:#4a3540;font:600 13.5px 'Noto Sans KR'">돌아가기</button>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ============ 입장 · 웰컴 ============ -->
+    <sc-if value="{{ scWelcome }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="입장 웰컴" style="position:absolute;inset:0;display:flex;flex-direction:column;background:linear-gradient(rgba(255,255,255,.78),rgba(255,255,255,.78)),url('uploads/reference-1783339192851.png') center/cover;animation:fadeIn .4s ease both">
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;padding:0 34px">
+          <div style="display:flex;gap:10px;align-items:center">
+            <div style="width:72px;height:94px;border-radius:18px;background:linear-gradient(140deg,#e8906f,#f7e2c0);filter:blur(7px);transform:rotate(-8deg);opacity:.85"></div>
+            <div style="width:86px;height:112px;border-radius:20px;background:linear-gradient(150deg,#b8a8d9,#e6ddf0);filter:blur(3px);box-shadow:0 16px 36px rgba(150,90,130,.25)"></div>
+            <div style="width:72px;height:94px;border-radius:18px;background:linear-gradient(150deg,#9fc4de,#f0e9d8);filter:blur(7px);transform:rotate(8deg);opacity:.85"></div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-family:Poppins,sans-serif;font-weight:700;font-size:42px;letter-spacing:-1.2px;color:#4a3540">blur</div>
+            <div style="margin-top:9px;font-size:13.5px;line-height:1.75;color:#8a6f7d">하루 하나의 주제, 흐릿한 사진 한 장.<br>탭해서 서로의 오늘을 선명하게 만나요.</div>
+          </div>
+        </div>
+        <div style="padding:0 26px 52px;display:flex;flex-direction:column;gap:10px">
+          <button onClick="{{ goSignup }}" style="border:none;cursor:pointer;padding:16px;border-radius:999px;background:#4a3540;color:#fff;font:600 14.5px 'Noto Sans KR';box-shadow:0 10px 24px rgba(74,53,64,.3)">시작하기</button>
+          <button onClick="{{ goLogin }}" style="border:1px solid rgba(74,53,64,.18);cursor:pointer;padding:15px;border-radius:999px;background:rgba(255,255,255,.75);color:#4a3540;font:600 14px 'Noto Sans KR'">이미 계정이 있어요</button>
+          <div style="margin-top:6px;text-align:center;font-size:10.5px;line-height:1.6;color:#b3a2ab">가입하면 이용약관과 개인정보 처리방침에 동의하게 돼요</div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ============ 로그인 ============ -->
+    <sc-if value="{{ scLogin }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="로그인" style="position:absolute;inset:0;display:flex;flex-direction:column;background:linear-gradient(rgba(255,255,255,.82),rgba(255,255,255,.82)),url('uploads/reference-1783339192851.png') center/cover;animation:riseIn .3s ease both">
+        <div style="padding:56px 22px 0">
+          <button onClick="{{ goWelcome }}" style="border:none;cursor:pointer;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.75);color:#4a3540;font:600 15px 'Noto Sans KR'">←</button>
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:24px 28px 40px;display:flex;flex-direction:column;gap:15px">
+          <div>
+            <div style="font-family:Poppins,sans-serif;font-weight:600;font-size:26px;letter-spacing:-.5px;color:#4a3540">로그인</div>
+            <div style="margin-top:6px;font-size:12.5px;color:#8a6f7d">다시 만나서 반가워요</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;border:1px solid rgba(74,53,64,.14);background:rgba(255,255,255,.85);border-radius:16px;padding:0 16px">
+            <span style="font:600 14px Quicksand,sans-serif;color:#b06a92">@</span>
+            <input value="{{ loginId }}" onChange="{{ setLoginId }}" placeholder="아이디" style="flex:1;border:none;background:transparent;padding:14px 0;font:400 13.5px 'Noto Sans KR';color:#3c2c36;outline:none">
+          </div>
+          <input type="password" value="{{ loginPw }}" onChange="{{ setLoginPw }}" placeholder="비밀번호" style="border:1px solid rgba(74,53,64,.14);background:rgba(255,255,255,.85);border-radius:16px;padding:14px 16px;font:400 13.5px 'Noto Sans KR';color:#3c2c36;outline:none">
+          <sc-if value="{{ loginErr }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:0 4px;font-size:11.5px;font-weight:600;color:#c04545">아이디와 비밀번호를 모두 입력해 주세요</div>
+          </sc-if>
+          <button onClick="{{ doLogin }}" style="border:none;cursor:{{ loginCursor }};padding:15px;border-radius:999px;background:{{ loginBg }};color:{{ loginColor }};font:600 14.5px 'Noto Sans KR';transition:all .2s">로그인</button>
+          <div onClick="{{ forgotPw }}" style="text-align:center;cursor:pointer;font-size:12px;font-weight:500;color:#b06a92">비밀번호를 잊었어요</div>
+          <div style="display:flex;align-items:center;gap:12px;padding:4px 0">
+            <div style="flex:1;height:1px;background:rgba(74,53,64,.1)"></div>
+            <span style="font-size:11px;color:#b3a2ab">또는</span>
+            <div style="flex:1;height:1px;background:rgba(74,53,64,.1)"></div>
+          </div>
+          <button onClick="{{ soKakao }}" style="border:none;cursor:pointer;padding:14px;border-radius:999px;background:#FEE500;color:#191919;font:600 13.5px 'Noto Sans KR';display:flex;align-items:center;justify-content:center;gap:8px">
+            <span style="display:flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#191919;color:#FEE500;font:700 10px Quicksand,sans-serif">K</span>카카오로 계속하기
+          </button>
+          <button onClick="{{ soNaver }}" style="border:none;cursor:pointer;padding:14px;border-radius:999px;background:#03C75A;color:#fff;font:600 13.5px 'Noto Sans KR';display:flex;align-items:center;justify-content:center;gap:8px">
+            <span style="display:flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#fff;color:#03C75A;font:700 10px Quicksand,sans-serif">N</span>네이버로 계속하기
+          </button>
+          <button onClick="{{ soGoogle }}" style="border:1px solid rgba(74,53,64,.16);cursor:pointer;padding:14px;border-radius:999px;background:#fff;color:#3c4043;font:600 13.5px 'Noto Sans KR';display:flex;align-items:center;justify-content:center;gap:8px">
+            <span style="display:flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;border:1px solid rgba(60,64,67,.25);color:#4285F4;font:700 10px Quicksand,sans-serif">G</span>Google로 계속하기
+          </button>
+          <div onClick="{{ goSignup }}" style="margin-top:4px;text-align:center;cursor:pointer;font-size:12px;color:#8a6f7d">처음이라면 <span style="font-weight:700;color:#b06a92">가입하기</span></div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ============ 소셜 로그인 연결 중 ============ -->
+    <sc-if value="{{ soBusyOn }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="소셜 로그인 연결" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:rgba(255,251,253,.93);backdrop-filter:blur(6px);animation:fadeIn .2s ease both;z-index:4">
+        <div style="width:38px;height:38px;border-radius:50%;border:3px solid rgba(74,53,64,.12);border-top-color:#4a3540;animation:spin .8s linear infinite"></div>
+        <div style="font-size:13px;font-weight:600;color:#3c2c36">{{ soBusyMsg }}</div>
+        <div style="font-size:11px;color:#a48b96">잠시만 기다려 주세요</div>
+      </div>
+    </sc-if>
+
+    <!-- ============ 가입 ============ -->
+    <sc-if value="{{ scSignup }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="가입" style="position:absolute;inset:0;display:flex;flex-direction:column;background:linear-gradient(rgba(255,255,255,.82),rgba(255,255,255,.82)),url('uploads/reference-1783339192851.png') center/cover;animation:riseIn .3s ease both">
+        <div style="padding:56px 22px 0">
+          <button onClick="{{ goWelcome }}" style="border:none;cursor:pointer;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.75);color:#4a3540;font:600 15px 'Noto Sans KR'">←</button>
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:24px 28px 40px;display:flex;flex-direction:column;gap:15px">
+          <div>
+            <div style="font-family:Poppins,sans-serif;font-weight:600;font-size:26px;letter-spacing:-.5px;color:#4a3540">가입하기</div>
+            <div style="margin-top:6px;font-size:12.5px;color:#8a6f7d">이름과 아이디만 있으면 바로 시작할 수 있어요</div>
+          </div>
+          <div>
+            <div style="padding:0 2px 6px;font-size:11.5px;font-weight:700;color:#3c2c36">이름</div>
+            <input value="{{ signName }}" onChange="{{ setSignName }}" placeholder="친구들에게 보일 이름" style="width:100%;box-sizing:border-box;border:1px solid rgba(74,53,64,.14);background:rgba(255,255,255,.85);border-radius:16px;padding:14px 16px;font:400 13.5px 'Noto Sans KR';color:#3c2c36;outline:none">
+          </div>
+          <div>
+            <div style="padding:0 2px 6px;font-size:11.5px;font-weight:700;color:#3c2c36">아이디</div>
+            <div style="display:flex;align-items:center;gap:6px;border:1px solid rgba(74,53,64,.14);background:rgba(255,255,255,.85);border-radius:16px;padding:0 16px">
+              <span style="font:600 14px Quicksand,sans-serif;color:#b06a92">@</span>
+              <input value="{{ signId }}" onChange="{{ setSignId }}" placeholder="한국어·영어 모두 가능" style="flex:1;border:none;background:transparent;padding:14px 0;font:400 13.5px 'Noto Sans KR';color:#3c2c36;outline:none">
+            </div>
+            <sc-if value="{{ signIdOk }}" hint-placeholder-val="{{ false }}">
+              <div style="margin-top:5px;padding:0 4px;font-size:10.5px;font-weight:600;color:#6aa392">사용할 수 있는 아이디예요 · 나만 쓰는 고유한 이름이 돼요</div>
+            </sc-if>
+            <sc-if value="{{ signIdDup }}" hint-placeholder-val="{{ false }}">
+              <div style="margin-top:5px;padding:0 4px;font-size:10.5px;font-weight:600;color:#c04545">이미 사용 중인 아이디예요. 다른 이름을 골라주세요</div>
+            </sc-if>
+            <sc-if value="{{ signIdHint }}" hint-placeholder-val="{{ true }}">
+              <div style="margin-top:5px;padding:0 4px;font-size:10.5px;color:#a48b96">한글, 영문, 숫자, _ 를 쓸 수 있어요</div>
+            </sc-if>
+          </div>
+          <button onClick="{{ doSign }}" style="border:none;cursor:{{ signCursor }};padding:15px;border-radius:999px;background:{{ signBg }};color:{{ signColor }};font:600 14.5px 'Noto Sans KR';transition:all .2s">시작하기</button>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ============ 탈퇴 완료 ============ -->
+    <sc-if value="{{ scBye }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="탈퇴 완료" style="position:absolute;inset:0;display:flex;flex-direction:column;background:linear-gradient(rgba(255,255,255,.84),rgba(255,255,255,.84)),url('uploads/reference-1783339192851.png') center/cover;animation:fadeIn .4s ease both">
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:0 40px;text-align:center">
+          <div style="width:88px;height:112px;border-radius:20px;background:linear-gradient(150deg,#b8a8d9,#e6ddf0);filter:blur(9px);opacity:.8"></div>
+          <div>
+            <div style="font-size:19px;font-weight:700;color:#3c2c36">탈퇴가 완료됐어요</div>
+            <div style="margin-top:9px;font-size:12.5px;line-height:1.75;color:#8a6f7d">모든 기록이 삭제됐어요.<br>blur가 필요해지면 언제든 다시 찾아와요.</div>
+          </div>
+        </div>
+        <div style="padding:0 26px 52px">
+          <button onClick="{{ byeDone }}" style="width:100%;border:none;cursor:pointer;padding:16px;border-radius:999px;background:#4a3540;color:#fff;font:600 14.5px 'Noto Sans KR';box-shadow:0 10px 24px rgba(74,53,64,.3)">처음 화면으로</button>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ============ 토스트 ============ -->
+    <sc-if value="{{ toastOn }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;top:110px;left:50%;transform:translateX(-50%);padding:11px 20px;border-radius:999px;background:rgba(58,42,52,.85);color:#fff;font:500 12.5px 'Noto Sans KR';backdrop-filter:blur(8px);animation:toastIn 2.6s ease both;white-space:nowrap;z-index:5">{{ toastMsg }}</div>
+    </sc-if>
+
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;startAt&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;웰컴&quot;, &quot;앱&quot;], &quot;default&quot;: &quot;웰컴&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;시작&quot;}, &quot;topic&quot;: {&quot;editor&quot;: &quot;text&quot;, &quot;default&quot;: &quot;지금 내 눈앞의 풍경&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;today's hub&quot;}, &quot;revealMs&quot;: {&quot;editor&quot;: &quot;range&quot;, &quot;default&quot;: 450, &quot;min&quot;: 300, &quot;max&quot;: 600, &quot;step&quot;: 50, &quot;unit&quot;: &quot;ms&quot;, &quot;tsType&quot;: &quot;number&quot;, &quot;section&quot;: &quot;blur 풀기&quot;}, &quot;blurAmount&quot;: {&quot;editor&quot;: &quot;range&quot;, &quot;default&quot;: 29, &quot;min&quot;: 8, &quot;max&quot;: 30, &quot;step&quot;: 1, &quot;unit&quot;: &quot;px&quot;, &quot;tsType&quot;: &quot;number&quot;, &quot;section&quot;: &quot;blur 풀기&quot;}}">
+class Component extends DCLogic {
+  state = {
+    tab: 'home', cIdx: 0, revealed: {},
+    myPosted: false, upOpen: false, upStep: 'pick', upSel: null, upCaption: '', saveRoom: false, shareAll: false,
+    upCrop: '원본', upZoom: 1, upFilter: '원본', upSplit: 1,
+    sheetFor: null, draft: '', extra: {}, toastOn: false, toastMsg: '',
+    mySel: null, viewer: null,
+    search: '', actionFor: null, friendProf: null, pubProf: null, pubReq: {},
+    profile: { name: '김유진', id: '유진_05', color: '#4a3540', emoji: '', photo: '' },
+    peOpen: false, peName: '', peId: '', peColor: '', peEmoji: '', pePhoto: '',
+    myPublic: false, soBusy: null,
+    auth: null, loginId: '', loginPw: '', loginErr: false,
+    signName: '', signId: '',
+    stOpen: false, notif: true, loOpen: false,
+    lvOpen: false, lvReason: null, lvAgree: false, lvcOpen: false,
+    friends: [
+      { id: 'f1', name: '김하윤', initial: '하', idname: '하윤로그', color: '#b06a92', time: '12분 전', ratio: '16/9', grad: 'linear-gradient(140deg,#e8906f 0%,#f2c49a 55%,#f7e2c0 100%)', label: '한강 노을', caption: '하교길 하늘 미쳤다 진짜', posted: true, comments: [{ name: '이서아', text: '와 색감 뭐야 필터 없이 이게 나온다고?' }, { name: '박지우', text: '여기 어디야?? 주말에 나도 갈래' }], past: [{ grad: 'linear-gradient(140deg,#f3d9a8,#e8a98c)', tag: '7/6' }, { grad: 'linear-gradient(150deg,#b8a8d9,#e6ddf0)', tag: '7/5' }, { grad: 'linear-gradient(135deg,#9fc4de,#f0e9d8)', tag: '7/4' }] },
+      { id: 'f2', name: '이서아', initial: '서', idname: 'seoa_02', color: '#7a86b8', time: '40분 전', ratio: '3/4', grad: 'linear-gradient(150deg,#9fc4de 0%,#cfe3ea 60%,#f0e9d8 100%)', label: '스터디카페 창가', caption: '', posted: true, comments: [{ name: '김하윤', text: '거기 창가 자리 명당이잖아' }], past: [{ grad: 'linear-gradient(150deg,#f3b6c8,#fbe3ea)', tag: '7/6' }, { grad: 'linear-gradient(140deg,#a8d8c4,#daf0e4)', tag: '7/5' }] },
+      { id: 'f3', name: '박지우', initial: '지', idname: '지우개', color: '#6aa392', time: '2시간 전', ratio: '1/1', grad: 'linear-gradient(135deg,#d98ca6 0%,#f0c1cf 55%,#f8e6e2 100%)', label: '붕어빵 세 마리', caption: '7월에 붕어빵 파는 집 발견함', posted: true, comments: [{ name: '최민서', text: '팥이야 슈크림이야 중요한 문제임' }], past: [{ grad: 'linear-gradient(135deg,#f0d288,#f8ecc4)', tag: '7/6' }, { grad: 'linear-gradient(145deg,#9ec4d8,#e0d2e8)', tag: '7/4' }, { grad: 'linear-gradient(140deg,#e0b18c,#f2ddc4)', tag: '7/3' }] },
+      { id: 'f4', name: '최민서', initial: '민', idname: 'minseo._.', color: '#c98a5e', time: '4시간 전', ratio: '9/16', grad: 'linear-gradient(145deg,#b8a8d9 0%,#dccfe8 55%,#f3e8ef 100%)', label: '버스 창밖 풍경', caption: '퇴근길인데 하늘색이 아까워서', posted: true, comments: [], past: [{ grad: 'linear-gradient(160deg,#8fa8c8,#d8e2ec)', tag: '7/5' }] },
+      { id: 'f5', name: '정예린', initial: '예', idname: '예린이네', color: '#a08acb', time: '', ratio: '1/1', grad: '', label: '', caption: '', posted: false, comments: [], past: [{ grad: 'linear-gradient(145deg,#a8d8c4,#e0f2e8)', tag: '7/6' }] },
+      { id: 'f6', name: '윤수빈', initial: '수', idname: 'subin_zip', color: '#5f8fa8', time: '', ratio: '1/1', grad: '', label: '', caption: '', posted: false, comments: [], past: [] }
+    ],
+    reqs: [{ id: 'r1', name: '정다은', initial: '다', idname: '다은잉', color: '#b06a92', mutual: '함께 아는 친구 2명' }],
+    recs: [
+      { id: 'c1', name: '한소율', initial: '소', idname: 'soyul.e', color: '#6aa392', mutual: '함께 아는 친구 3명', requested: false },
+      { id: 'c2', name: '오세림', initial: '세', idname: '세림세림', color: '#c98a5e', mutual: '연락처 친구', requested: false },
+      { id: 'c3', name: '류지안', initial: '지', idname: 'zian_04', color: '#7a86b8', mutual: '함께 아는 친구 1명', requested: false }
+    ]
+  };
+
+  RAT = { '1/1': 1, '4/5': 0.8, '3/4': 0.75, '9/16': 0.5625, '4/3': 4 / 3, '16/9': 16 / 9 };
+  FIL = { '원본': 'none', '뽀얀': 'brightness(1.07) saturate(.9)', '필름': 'sepia(.3) contrast(1.06)', '흑백': 'grayscale(1)', '노을': 'sepia(.25) saturate(1.35) hue-rotate(-12deg)' };
+  CROP = { '원본': null, '1:1': '1/1', '4:5': '4/5', '16:9': '16/9' };
+  COLORS = ['#4a3540', '#b06a92', '#7a86b8', '#6aa392', '#c98a5e'];
+  EMOJIS = ['없음', '🌷', '🫧', '🍑', '🌙'];
+
+  P = [
+    { id: 'p1', name: '무화과라떼', initial: '무', idname: 'figlatte', pub: true, color: '#c98a5e', ratio: '3/4', grad: 'linear-gradient(140deg,#e0b18c,#f2ddc4)', label: '집 앞 골목 저녁', comments: [{ name: 'yeonu.02', text: '골목 감성 무엇' }], past: [{ grad: 'linear-gradient(140deg,#f3d9a8,#e8a98c)', tag: '7/6' }, { grad: 'linear-gradient(150deg,#b8a8d9,#e6ddf0)', tag: '7/5' }] },
+    { id: 'p2', name: 'yeonu.02', initial: 'y', idname: 'yeonu.02', pub: false, color: '#7a86b8', ratio: '1/1', grad: 'linear-gradient(150deg,#f3b6c8,#fbe3ea)', label: '오늘의 조각 케이크', comments: [], past: [] },
+    { id: 'p3', name: '달의뒷면', initial: '달', idname: 'moon_backside', pub: true, color: '#4a3540', ratio: '9/16', grad: 'linear-gradient(160deg,#8fa8c8,#d8e2ec)', label: '옥상에서 본 하늘', comments: [{ name: '무화과라떼', text: '우와 노을 맛집이네요' }], past: [{ grad: 'linear-gradient(135deg,#9fc4de,#f0e9d8)', tag: '7/4' }, { grad: 'linear-gradient(145deg,#d98ca6,#f8e6e2)', tag: '7/3' }, { grad: 'linear-gradient(135deg,#f0d288,#f8ecc4)', tag: '7/2' }] },
+    { id: 'p4', name: '서면_필름', initial: '서', idname: 'seomyeon_film', pub: false, color: '#6aa392', ratio: '4/3', grad: 'linear-gradient(135deg,#c9d8a8,#eef2d8)', label: '필름 스캔 한 장', comments: [], past: [] },
+    { id: 'p5', name: '흰코끼리', initial: '흰', idname: 'white_coming', pub: true, color: '#5f8fa8', ratio: '1/1', grad: 'linear-gradient(145deg,#a8d8c4,#e0f2e8)', label: '식물원 온실', comments: [], past: [{ grad: 'linear-gradient(140deg,#a8d8c4,#daf0e4)', tag: '7/6' }] },
+    { id: 'p6', name: 'ddoni', initial: 'd', idname: 'ddoni', pub: false, color: '#b06a92', ratio: '3/4', grad: 'linear-gradient(140deg,#e8a0a8,#f8dcda)', label: '자전거 도로', comments: [{ name: '달의뒷면', text: '바퀴 그림자 예술이다' }], past: [] }
+  ];
+
+  GAL = [
+    { grad: 'linear-gradient(140deg,#f3b6c8,#f8dce2)', label: '네컷사진', ratio: '9/16' },
+    { grad: 'linear-gradient(150deg,#a8cdea,#dcebf2)', label: '하늘', ratio: '16/9' },
+    { grad: 'linear-gradient(135deg,#f0c9a0,#f8e6cc)', label: '급식 디저트', ratio: '1/1' },
+    { grad: 'linear-gradient(145deg,#c3b4e0,#e6ddf0)', label: '독서실 책상', ratio: '4/3' },
+    { grad: 'linear-gradient(140deg,#a8d8c4,#daf0e4)', label: '산책하는 콩이', ratio: '3/4' },
+    { grad: 'linear-gradient(150deg,#e8a0a8,#f5d5d5)', label: '편의점 신상', ratio: '1/1' },
+    { grad: 'linear-gradient(135deg,#f0d288,#f8ecc4)', label: '노을', ratio: '16/9' },
+    { grad: 'linear-gradient(145deg,#9ec4d8,#e0d2e8)', label: '창밖 비', ratio: '4/5' }
+  ];
+
+  ARCH = [
+    { date: '7월 6일', topic: '오늘의 점심은?', grad: 'linear-gradient(140deg,#f3d9a8,#e8a98c)', tag: '7/6' },
+    { date: '7월 5일', topic: '요즘 최애 노래 들을 때', grad: 'linear-gradient(150deg,#b8a8d9,#e6ddf0)', tag: '7/5' },
+    { date: '7월 4일', topic: '내 가방 속 필수템', grad: 'linear-gradient(135deg,#9fc4de,#f0e9d8)', tag: '7/4' },
+    { date: '7월 3일', topic: '오늘의 하늘 한 장', grad: 'linear-gradient(145deg,#d98ca6,#f8e6e2)', tag: '7/3' }
+  ];
+
+  boxW(ratio, availW, maxH) {
+    const r = this.RAT[ratio] || 1;
+    return Math.min(availW, Math.round(maxH * r)) + 'px';
+  }
+
+  showToast(msg) {
+    this.setState({ toastOn: true, toastMsg: msg });
+    clearTimeout(this._toastT);
+    this._toastT = setTimeout(() => this.setState({ toastOn: false }), 2600);
+  }
+
+  myCard(id) {
+    const g = this.GAL[this.state.upSel ?? 1];
+    const split = this.state.upSplit;
+    const tiles = [];
+    for (let i = 0; i < split; i++) tiles.push({ grad: this.GAL[((this.state.upSel ?? 1) + i) % this.GAL.length].grad });
+    return {
+      id, name: '나', initial: '나', time: '방금',
+      ratio: this.CROP[this.state.upCrop] || g.ratio,
+      grad: g.grad, label: g.label, caption: this.state.upCaption, comments: [],
+      tiles, gridCols: split > 1 ? '1fr 1fr' : '1fr',
+      tint: this.FIL[this.state.upFilter],
+      zoomScale: (1.12 * this.state.upZoom).toFixed(2)
+    };
+  }
+
+  decorate(d, availW, maxH) {
+    const blurPx = this.props.blurAmount ?? 29;
+    const revealed = d.id === 'me' || d.id === 'me-pub' || !!this.state.revealed[d.id];
+    const extra = this.state.extra[d.id] || [];
+    return {
+      ...d, revealed, hidden: true,
+      ovOp: revealed ? 0 : 1,
+      blurPx: revealed ? '0px' : blurPx + 'px',
+      hasCaption: !!(d.caption && d.caption.length),
+      commentTotal: d.comments.length + extra.length,
+      boxW: this.boxW(d.ratio, availW, maxH),
+      tiles: d.tiles || [{ grad: d.grad }],
+      gridCols: d.gridCols || '1fr',
+      tint: d.tint || 'none',
+      zoomScale: d.zoomScale || '1.12',
+      onTap: () => this.setState(s => ({ revealed: { ...s.revealed, [d.id]: true } })),
+      openComments: () => this.setState({ sheetFor: d.id, draft: '' }),
+      openProfile: () => { if (d.id !== 'me' && d.id !== 'me-pub') this.setState({ pubProf: d.id }); }
+    };
+  }
+
+  press(i) {
+    this._lpFired = false;
+    clearTimeout(this._lp);
+    this._lp = setTimeout(() => { this._lpFired = true; this.setState({ viewer: i }); }, 450);
+  }
+  pressEnd() { clearTimeout(this._lp); }
+
+  lastGrapheme(t) {
+    if (!t) return '';
+    try {
+      const parts = [...new Intl.Segmenter('ko', { granularity: 'grapheme' }).segment(t)].map(x => x.segment);
+      return parts[parts.length - 1] || '';
+    } catch (err) {
+      const a = Array.from(t);
+      return a[a.length - 1] || '';
+    }
+  }
+
+  social(name) {
+    this.setState({ soBusy: name });
+    clearTimeout(this._soT);
+    this._soT = setTimeout(() => {
+      this.setState({ soBusy: null, auth: 'app', tab: 'home', loginErr: false });
+      this.showToast(name + ' 계정으로 로그인했어요');
+    }, 1100);
+  }
+
+  mkTab(key) {
+    return {
+      color: this.state.tab === key ? '#3c2c36' : '#b3a2ab',
+      dotOp: this.state.tab === key ? 1 : 0,
+      onTap: () => this.setState({ tab: key })
+    };
+  }
+
+  mkChips(list, cur, apply) {
+    return list.map(v => ({
+      label: v,
+      bg: v === cur ? '#4a3540' : 'rgba(255,255,255,.75)',
+      color: v === cur ? '#fff' : '#4a3540',
+      onSel: () => apply(v)
+    }));
+  }
+
+  renderVals() {
+    const topic = this.props.topic ?? '지금 내 눈앞의 풍경';
+    const prof = this.state.profile;
+    const auth = this.state.auth ?? ((this.props.startAt ?? '웰컴') === '앱' ? 'app' : 'welcome');
+    const inApp = auth === 'app';
+    const loginReady = this.state.loginId.trim().length > 0 && this.state.loginPw.length > 0;
+    const taken = new Set([
+      ...this.state.friends.map(f => f.idname),
+      ...this.state.recs.map(r => r.idname),
+      ...this.state.reqs.map(r => r.idname),
+      ...this.P.map(p => p.idname)
+    ]);
+    const signIdVal = this.state.signId.trim();
+    const signIdDup = signIdVal.length >= 2 && taken.has(signIdVal);
+    const signIdOk = signIdVal.length >= 2 && !signIdDup;
+    const signReady = this.state.signName.trim().length > 0 && signIdOk;
+    const peIdVal = this.state.peId.trim();
+    const peIdDup = peIdVal.length > 0 && peIdVal !== this.state.profile.id && taken.has(peIdVal);
+    const lvReady = this.state.lvAgree;
+
+    const list = [];
+    if (this.state.myPosted) list.push(this.myCard('me'));
+    list.push(...this.state.friends.filter(f => f.posted));
+    const cards = list.map(d => this.decorate(d, 320, 420));
+    const n = cards.length;
+    const cIdx = Math.min(this.state.cIdx, Math.max(0, n - 1));
+
+    const pubList = [];
+    if (this.state.myPosted && this.state.shareAll) pubList.push(this.myCard('me-pub'));
+    pubList.push(...this.P);
+    const pub = pubList.map(d => this.decorate(d, 320, 420));
+
+    const all = [...cards, ...pub];
+    const target = this.state.sheetFor ? all.find(c => c.id === this.state.sheetFor) : null;
+    const send = () => {
+      const t = this.state.draft.trim();
+      if (!t || !target) return;
+      this.setState(s => ({ extra: { ...s.extra, [target.id]: [...(s.extra[target.id] || []), { name: '나', text: t }] }, draft: '' }));
+    };
+
+    const selIdx = this.state.upSel;
+    const sel = selIdx != null ? this.GAL[selIdx] : null;
+    const upRatio = sel ? (this.CROP[this.state.upCrop] || sel.ratio) : '1/1';
+    const upTiles = [];
+    if (sel) for (let i = 0; i < this.state.upSplit; i++) upTiles.push({ grad: this.GAL[(selIdx + i) % this.GAL.length].grad });
+
+    const myItems = [];
+    if (this.state.myPosted && sel) myItems.push({ grad: sel.grad, tag: '오늘', date: '오늘', topic, today: true });
+    myItems.push(...this.ARCH.map(a => ({ grad: a.grad, tag: a.tag, date: a.date, topic: a.topic, today: false })));
+    const mySel = this.state.mySel;
+    const myGrid = myItems.map((g, i) => ({
+      grad: g.grad, tag: g.tag,
+      blurPx: g.today ? '11px' : '0px',
+      ring: mySel === i ? 'inset 0 0 0 2.5px #4a3540' : 'inset 0 0 0 1px rgba(255,255,255,.5)',
+      onTap: () => { if (this._lpFired) { this._lpFired = false; return; } this.setState(s => ({ mySel: s.mySel === i ? null : i })); },
+      onDown: () => this.press(i),
+      onUp: () => this.pressEnd()
+    }));
+    const mySelItem = mySel != null ? myItems[mySel] : null;
+    const vwItem = this.state.viewer != null ? myItems[this.state.viewer] : null;
+
+    const q = this.state.search.trim();
+    const friendRows = this.state.friends
+      .filter(f => !q || f.name.includes(q) || f.idname.includes(q))
+      .map(f => ({
+        ...f,
+        status: f.posted ? '오늘 참여함' : '오늘은 아직이에요',
+        openProfile: () => this.setState({ friendProf: f.id }),
+        openActions: () => this.setState({ actionFor: f.id })
+      }));
+
+    const reqRows = this.state.reqs.map(r => ({
+      ...r,
+      accept: () => {
+        this.setState(s => ({
+          reqs: s.reqs.filter(x => x.id !== r.id),
+          friends: [...s.friends, { id: r.id, name: r.name, initial: r.initial, idname: r.idname, color: r.color, time: '', ratio: '1/1', grad: '', label: '', caption: '', posted: false, comments: [], past: [] }]
+        }));
+        this.showToast(r.name + '님과 친구가 됐어요');
+      },
+      decline: () => this.setState(s => ({ reqs: s.reqs.filter(x => x.id !== r.id) }))
+    }));
+
+    const recRows = this.state.recs.map(r => ({
+      ...r,
+      addLabel: r.requested ? '요청 보냄' : '추가',
+      addBg: r.requested ? 'rgba(224,121,180,.14)' : '#4a3540',
+      addColor: r.requested ? '#b3568b' : '#fff',
+      addBorder: 'none',
+      onAdd: () => { if (!r.requested) this.setState(s => ({ recs: s.recs.map(x => x.id === r.id ? { ...x, requested: true } : x) })); }
+    }));
+
+    const asFriend = this.state.actionFor ? this.state.friends.find(f => f.id === this.state.actionFor) : null;
+    const removeFriend = (msg) => {
+      const id = this.state.actionFor;
+      this.setState(s => ({ friends: s.friends.filter(f => f.id !== id), actionFor: null }));
+      this.showToast(msg);
+    };
+
+    const fp = this.state.friendProf ? this.state.friends.find(f => f.id === this.state.friendProf) : null;
+    const fpGrid = [];
+    if (fp) {
+      if (fp.posted) {
+        const revealed = !!this.state.revealed[fp.id];
+        fpGrid.push({
+          grad: fp.grad, tag: '오늘',
+          blurPx: revealed ? '0px' : '11px',
+          cursor: 'pointer',
+          onTap: () => this.setState(s => ({ revealed: { ...s.revealed, [fp.id]: true } }))
+        });
+      }
+      fp.past.forEach(p => fpGrid.push({ grad: p.grad, tag: p.tag, blurPx: '0px', cursor: 'default', onTap: () => {} }));
+    }
+
+    const pp = this.state.pubProf ? pub.find(p => p.id === this.state.pubProf) : null;
+    const ppRequested = pp ? !!this.state.pubReq[pp.id] : false;
+    const ppfGrid = [];
+    if (pp && pp.pub) {
+      const ppRevealed = !!this.state.revealed[pp.id];
+      ppfGrid.push({
+        grad: pp.grad, tag: '오늘',
+        blurPx: ppRevealed ? '0px' : '11px',
+        cursor: 'pointer',
+        onTap: () => this.setState(s => ({ revealed: { ...s.revealed, [pp.id]: true } }))
+      });
+      (pp.past || []).forEach(x => ppfGrid.push({ grad: x.grad, tag: x.tag, blurPx: '0px', cursor: 'default', onTap: () => {} }));
+    }
+
+    const myAvatar = prof.photo ? '' : (prof.emoji || (prof.name ? prof.name[0] : '유'));
+    const myBg = prof.photo || prof.color;
+    const peAvatar = this.state.pePhoto ? '' : (this.state.peEmoji || (this.state.peName ? this.state.peName[0] : '유'));
+    const peBg = this.state.pePhoto || (this.state.peColor || '#4a3540');
+
+    return {
+      topic, topicDate: '7월 7일',
+      revealDur: (this.props.revealMs ?? 450) + 'ms',
+      tabHome: inApp && this.state.tab === 'home',
+      tabAll: inApp && this.state.tab === 'all',
+      tabFriends: inApp && this.state.tab === 'friends',
+      tabMy: inApp && this.state.tab === 'my',
+      inApp,
+      tHome: this.mkTab('home'), tAll: this.mkTab('all'), tFr: this.mkTab('friends'), tMy: this.mkTab('my'),
+
+      scWelcome: auth === 'welcome',
+      scLogin: auth === 'login',
+      scSignup: auth === 'signup',
+      scBye: auth === 'bye',
+      goWelcome: () => this.setState({ auth: 'welcome', loginErr: false }),
+      goLogin: () => this.setState({ auth: 'login', loginId: '', loginPw: '', loginErr: false }),
+      goSignup: () => this.setState({ auth: 'signup', signName: '', signId: '' }),
+      loginId: this.state.loginId,
+      loginPw: this.state.loginPw,
+      setLoginId: (e) => this.setState({ loginId: e.target.value.slice(0, 16), loginErr: false }),
+      setLoginPw: (e) => this.setState({ loginPw: e.target.value.slice(0, 20), loginErr: false }),
+      loginErr: this.state.loginErr,
+      loginBg: loginReady ? '#4a3540' : 'rgba(74,53,64,.18)',
+      loginColor: loginReady ? '#fff' : 'rgba(255,255,255,.8)',
+      loginCursor: loginReady ? 'pointer' : 'default',
+      doLogin: () => {
+        if (!loginReady) { this.setState({ loginErr: true }); return; }
+        this.setState({ auth: 'app', tab: 'home', loginErr: false });
+        this.showToast('다시 만나서 반가워요 🤍');
+      },
+      forgotPw: () => this.showToast('가입한 연락처로 재설정 링크를 보냈어요'),
+      soBusyOn: !!this.state.soBusy,
+      soBusyMsg: this.state.soBusy ? this.state.soBusy + ' 계정으로 연결하는 중…' : '',
+      soKakao: () => this.social('카카오'),
+      soNaver: () => this.social('네이버'),
+      soGoogle: () => this.social('Google'),
+      signName: this.state.signName,
+      signId: this.state.signId,
+      setSignName: (e) => this.setState({ signName: e.target.value.slice(0, 12) }),
+      setSignId: (e) => this.setState({ signId: e.target.value.slice(0, 16) }),
+      signIdOk,
+      signIdDup,
+      signIdHint: !signIdOk && !signIdDup,
+      signBg: signReady ? '#4a3540' : 'rgba(74,53,64,.18)',
+      signColor: signReady ? '#fff' : 'rgba(255,255,255,.8)',
+      signCursor: signReady ? 'pointer' : 'default',
+      doSign: () => {
+        if (!signReady) return;
+        const nm = this.state.signName.trim();
+        this.setState(s => ({ auth: 'app', tab: 'home', profile: { ...s.profile, name: nm, id: s.signId.trim() } }));
+        this.showToast('환영해요, ' + nm + '님 🤍');
+      },
+
+      stOpen: this.state.stOpen,
+      openSettings: () => this.setState({ stOpen: true }),
+      stClose: () => this.setState({ stOpen: false }),
+      notifBg: this.state.notif ? '#4a3540' : 'rgba(74,53,64,.18)',
+      notifKnob: this.state.notif ? '22px' : '3px',
+      toggleNotif: () => this.setState(s => ({ notif: !s.notif })),
+      pubBg: this.state.myPublic ? '#4a3540' : 'rgba(74,53,64,.18)',
+      pubKnob: this.state.myPublic ? '22px' : '3px',
+      togglePublic: () => {
+        const next = !this.state.myPublic;
+        this.setState({ myPublic: next });
+        this.showToast(next ? '이제 누구나 내 프로필을 볼 수 있어요' : '이제 친구만 내 프로필을 볼 수 있어요');
+      },
+      loOpen: this.state.loOpen,
+      openLogout: () => this.setState({ loOpen: true }),
+      loClose: () => this.setState({ loOpen: false }),
+      doLogout: () => this.setState({
+        auth: 'welcome', stOpen: false, loOpen: false, tab: 'home',
+        upOpen: false, sheetFor: null, mySel: null, viewer: null,
+        friendProf: null, pubProf: null, actionFor: null, peOpen: false,
+        loginId: '', loginPw: '', loginErr: false
+      }),
+      lvOpen: this.state.lvOpen,
+      goLeave: () => this.setState({ lvOpen: true, lvReason: null, lvAgree: false, lvcOpen: false }),
+      lvBack: () => this.setState({ lvOpen: false, lvcOpen: false }),
+      lvReasons: ['잘 쓰지 않게 됐어요', '새 계정을 만들 거예요', '개인정보가 걱정돼요', '기타'].map(v => ({
+        label: v,
+        bg: this.state.lvReason === v ? 'rgba(224,121,180,.1)' : 'rgba(255,255,255,.7)',
+        border: this.state.lvReason === v ? 'rgba(224,121,180,.3)' : 'rgba(74,53,64,.1)',
+        dotBorder: this.state.lvReason === v ? '#4a3540' : 'rgba(74,53,64,.25)',
+        dotOp: this.state.lvReason === v ? 1 : 0,
+        onSel: () => this.setState({ lvReason: v })
+      })),
+      lvToggle: () => this.setState(s => ({ lvAgree: !s.lvAgree })),
+      agreeBg: this.state.lvAgree ? '#4a3540' : 'transparent',
+      agreeBorder: this.state.lvAgree ? '#4a3540' : 'rgba(74,53,64,.3)',
+      agreeCk: this.state.lvAgree ? '✓' : '',
+      lvBg: lvReady ? '#c04545' : 'rgba(74,53,64,.18)',
+      lvColor: lvReady ? '#fff' : 'rgba(255,255,255,.8)',
+      lvCursor: lvReady ? 'pointer' : 'default',
+      lvNext: () => { if (this.state.lvAgree) this.setState({ lvcOpen: true }); },
+      lvcOpen: this.state.lvcOpen,
+      lvcClose: () => this.setState({ lvcOpen: false }),
+      doLeave: () => this.setState({
+        auth: 'bye', stOpen: false, lvOpen: false, lvcOpen: false, loOpen: false, tab: 'home',
+        myPosted: false, revealed: {}, extra: {}, mySel: null, viewer: null, sheetFor: null, upOpen: false,
+        search: '', loginId: '', loginPw: ''
+      }),
+      byeDone: () => this.setState({ auth: 'welcome' }),
+
+      cards, hasCards: n > 0, noCards: n === 0,
+      notPosted: !this.state.myPosted,
+      myPosted: this.state.myPosted,
+      dots: cards.map((c, i) => ({
+        w: i === cIdx ? '22px' : '7px',
+        bg: i === cIdx ? '#4a3540' : (c.revealed ? 'rgba(224,121,180,.6)' : 'rgba(74,53,64,.22)')
+      })),
+      homeScroll: (e) => {
+        const i = Math.round(e.target.scrollLeft / 336);
+        if (i !== this.state.cIdx) this.setState({ cIdx: i });
+      },
+
+      pubColA: pub.filter((p, i) => i % 2 === 0),
+      pubColB: pub.filter((p, i) => i % 2 === 1),
+
+      friendCount: this.state.friends.length,
+      search: this.state.search,
+      setSearch: (e) => this.setState({ search: e.target.value }),
+      friendRows,
+      noFriendResults: friendRows.length === 0,
+      hasReqs: this.state.reqs.length > 0,
+      reqRows, recRows,
+
+      asOpen: !!asFriend,
+      asName: asFriend ? asFriend.name : '',
+      asClose: () => this.setState({ actionFor: null }),
+      asDelete: () => removeFriend('친구를 삭제했어요'),
+      asBlock: () => removeFriend('차단했어요. 서로의 응답이 보이지 않아요'),
+
+      fpOpen: !!fp,
+      fpName: fp ? fp.name : '',
+      fpId: fp ? fp.idname : '',
+      fpInitial: fp ? fp.initial : '',
+      fpColor: fp ? fp.color : '#4a3540',
+      fpStatus: fp ? (fp.posted ? '오늘 참여함' : '오늘은 아직이에요') : '',
+      fpGrid,
+      fpClose: () => this.setState({ friendProf: null }),
+
+      ppOpen: !!pp && !pp.pub,
+      ppName: pp ? pp.name : '',
+      ppId: pp ? (pp.idname || '') : '',
+      ppInitial: pp ? pp.initial : '',
+      ppColor: pp ? pp.color : '#4a3540',
+      ppReqLabel: ppRequested ? '요청 보냄' : '친구 요청',
+      ppReqBg: ppRequested ? 'rgba(224,121,180,.14)' : '#4a3540',
+      ppReqColor: ppRequested ? '#b3568b' : '#fff',
+      ppReqBorder: 'none',
+      ppReq: () => { if (pp && !ppRequested) this.setState(s => ({ pubReq: { ...s.pubReq, [pp.id]: true } })); },
+      ppClose: () => this.setState({ pubProf: null }),
+
+      ppfOpen: !!pp && !!pp.pub,
+      ppfName: pp ? pp.name : '',
+      ppfId: pp ? (pp.idname || '') : '',
+      ppfInitial: pp ? pp.initial : '',
+      ppfColor: pp ? pp.color : '#4a3540',
+      ppfGrid,
+      ppfReqLabel: ppRequested ? '요청 보냄' : '친구 요청',
+      ppfReqBg: ppRequested ? 'rgba(224,121,180,.14)' : '#4a3540',
+      ppfReqColor: ppRequested ? '#b3568b' : '#fff',
+      ppfReq: () => { if (pp && !ppRequested) this.setState(s => ({ pubReq: { ...s.pubReq, [pp.id]: true } })); },
+      ppfClose: () => this.setState({ pubProf: null }),
+
+      myName: prof.name, myId: prof.id, myColor: prof.color, myAvatar, myBg,
+      visitors: this.state.myPosted ? 12 : 8,
+      myGrid,
+      mySelOn: !!mySelItem,
+      mySelDate: mySelItem ? mySelItem.date : '',
+      mySelTopic: mySelItem ? mySelItem.topic : '',
+      mySelClose: () => this.setState({ mySel: null }),
+
+      vwOpen: !!vwItem,
+      vwGrad: vwItem ? vwItem.grad : '',
+      vwDate: vwItem ? vwItem.date : '',
+      vwTopic: vwItem ? vwItem.topic : '',
+      vwClose: () => this.setState({ viewer: null }),
+
+      peOpen: this.state.peOpen,
+      openProfEdit: () => this.setState({ peOpen: true, peName: prof.name, peId: prof.id, peColor: prof.color, peEmoji: prof.emoji, pePhoto: prof.photo || '' }),
+      peClose: () => this.setState({ peOpen: false }),
+      peName: this.state.peName,
+      peId: this.state.peId,
+      peColor: this.state.peColor || '#4a3540',
+      peAvatar, peBg,
+      peEmojiVal: this.state.peEmoji,
+      setPeEmojiFree: (e) => this.setState({ peEmoji: this.lastGrapheme(e.target.value), pePhoto: '' }),
+      pePickPhoto: (e) => {
+        const f = e.target.files && e.target.files[0];
+        if (!f) return;
+        const u = URL.createObjectURL(f);
+        this.setState({ pePhoto: 'url(' + u + ') center/cover', peEmoji: '' });
+      },
+      pePhotoOn: !!this.state.pePhoto,
+      peClearPhoto: () => this.setState({ pePhoto: '' }),
+      peIdDup,
+      peIdFree: !peIdDup,
+      setPeName: (e) => this.setState({ peName: e.target.value.slice(0, 12) }),
+      setPeId: (e) => this.setState({ peId: e.target.value.slice(0, 16) }),
+      colorChips: this.COLORS.map(c => ({
+        c,
+        ring: c === this.state.peColor ? '0 0 0 3px #fff, 0 0 0 5px ' + c : '0 0 0 1px rgba(74,53,64,.1)',
+        onSel: () => this.setState({ peColor: c })
+      })),
+      emojiChips: this.EMOJIS.map(e => ({
+        e: e === '없음' ? '✕' : e,
+        bg: (e === '없음' ? this.state.peEmoji === '' : this.state.peEmoji === e) ? 'rgba(224,121,180,.2)' : 'rgba(255,255,255,.8)',
+        onSel: () => this.setState({ peEmoji: e === '없음' ? '' : e, pePhoto: '' })
+      })),
+      peSave: () => {
+        if (peIdDup) { this.showToast('이미 사용 중인 아이디예요'); return; }
+        this.setState(s => ({
+          peOpen: false,
+          profile: { name: s.peName || s.profile.name, id: s.peId.trim() || s.profile.id, color: s.peColor, emoji: s.peEmoji, photo: s.pePhoto }
+        }));
+        this.showToast('프로필을 저장했어요');
+      },
+
+      upOpen: this.state.upOpen,
+      upTitle: this.state.upStep === 'pick' ? '사진 고르기' : (this.state.upStep === 'edit' ? '사진 수정' : '마지막 확인'),
+      stepPick: this.state.upStep === 'pick',
+      stepEdit: this.state.upStep === 'edit',
+      stepCap: this.state.upStep === 'caption',
+      openUpload: () => this.setState({ upOpen: true, upStep: 'pick', upSel: null, upCaption: '', saveRoom: false, shareAll: false, upCrop: '원본', upZoom: 1, upFilter: '원본', upSplit: 1 }),
+      upBackFn: () => {
+        if (this.state.upStep === 'caption') this.setState({ upStep: 'edit' });
+        else if (this.state.upStep === 'edit') this.setState({ upStep: 'pick' });
+        else this.setState({ upOpen: false });
+      },
+      gallery: this.GAL.map((g, i) => ({
+        ...g,
+        border: selIdx === i ? '#4a3540' : 'transparent',
+        ckOp: selIdx === i ? 1 : 0,
+        onPick: () => this.setState({ upSel: i })
+      })),
+      nextBg: selIdx != null ? '#4a3540' : 'rgba(74,53,64,.18)',
+      nextColor: selIdx != null ? '#fff' : 'rgba(255,255,255,.8)',
+      nextCursor: selIdx != null ? 'pointer' : 'default',
+      nextFromPick: () => { if (this.state.upSel != null) this.setState({ upStep: 'edit' }); },
+      nextFromEdit: () => this.setState({ upStep: 'caption' }),
+
+      upRatio,
+      upW: this.boxW(upRatio, 338, 330),
+      upTiles,
+      upGridCols: this.state.upSplit > 1 ? '1fr 1fr' : '1fr',
+      upTint: this.FIL[this.state.upFilter],
+      upZoom: this.state.upZoom,
+      upZoomScale: (1.12 * this.state.upZoom).toFixed(2),
+      setZoom: (e) => this.setState({ upZoom: parseFloat(e.target.value) }),
+      cropChips: this.mkChips(['원본', '1:1', '4:5', '16:9'], this.state.upCrop, (v) => this.setState({ upCrop: v })),
+      filterChips: this.mkChips(['원본', '뽀얀', '필름', '흑백', '노을'], this.state.upFilter, (v) => this.setState({ upFilter: v })),
+      splitChips: [{ l: '없음', v: 1 }, { l: '2분할', v: 2 }, { l: '4분할', v: 4 }].map(o => ({
+        label: o.l,
+        bg: o.v === this.state.upSplit ? '#4a3540' : 'rgba(255,255,255,.75)',
+        color: o.v === this.state.upSplit ? '#fff' : '#4a3540',
+        onSel: () => this.setState({ upSplit: o.v })
+      })),
+
+      selLabel: sel ? sel.label : '',
+      capVal: this.state.upCaption,
+      setCap: (e) => this.setState({ upCaption: e.target.value.slice(0, 60) }),
+      roomBg: this.state.saveRoom ? '#4a3540' : 'rgba(74,53,64,.18)',
+      knobLeft: this.state.saveRoom ? '22px' : '3px',
+      toggleRoom: () => this.setState(s => ({ saveRoom: !s.saveRoom })),
+      shareBg: this.state.shareAll ? '#4a3540' : 'rgba(74,53,64,.18)',
+      shareKnob: this.state.shareAll ? '22px' : '3px',
+      toggleShare: () => this.setState(s => ({ shareAll: !s.shareAll })),
+      publish: () => {
+        this.setState({ myPosted: true, upOpen: false, tab: 'home', cIdx: 0, mySel: null });
+        this.showToast('오늘의 허브에 올렸어요 🤍');
+      },
+      toastOn: this.state.toastOn,
+      toastMsg: this.state.toastMsg,
+
+      sheetOpen: !!target,
+      sheetName: target ? target.name : '',
+      sheetEmpty: target ? (target.comments.length + (this.state.extra[target.id] || []).length) === 0 : true,
+      sheetComments: target ? [
+        ...target.comments.map(c => ({ name: c.name, text: c.text, bg: 'rgba(255,255,255,.9)' })),
+        ...(this.state.extra[target.id] || []).map(c => ({ name: c.name, text: c.text, bg: 'rgba(224,121,180,.13)' }))
+      ] : [],
+      closeSheet: () => this.setState({ sheetFor: null }),
+      draft: this.state.draft,
+      draftCount: this.state.draft.length + '/100',
+      setDraft: (e) => this.setState({ draft: e.target.value.slice(0, 100) }),
+      draftKey: (e) => { if (e.key === 'Enter') send(); },
+      sendComment: send
+    };
+  }
+}
+</script>
+</body>
+</html>
