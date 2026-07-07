@@ -2,6 +2,18 @@
 
 `blur` 디자인 핸드오프를 바탕으로 만든 모바일 우선 PWA입니다. 별도 빌드 도구 없이 정적 파일만으로 실행되며, 모바일 브라우저에서 설치형 앱처럼 사용할 수 있습니다.
 
+## 라이브 배포 (2026-07-07)
+
+- **URL**: https://kdh96980919-star.github.io/blur-app/
+- **배포 저장소**: https://github.com/kdh96980919-star/blur-app (GitHub Pages, main 브랜치 루트)
+- 재배포 방법: 이 폴더의 파일을 수정한 뒤 `blur-app` 저장소를 clone해서 파일을 덮어쓰고 push하면 1~2분 내 반영됩니다.
+
+```bash
+git clone https://github.com/kdh96980919-star/blur-app.git /tmp/blur-app
+rsync -a --exclude .git --exclude .DS_Store /Users/kim/Desktop/anti/10-working/blur-service/ /tmp/blur-app/
+cd /tmp/blur-app && git add -A && git commit -m "update" && git push
+```
+
 ## 중요한 구분
 
 - `/` : 배포 가능한 형태로 다시 구현한 PWA MVP

@@ -128,7 +128,7 @@ function blankUpload() {
 
 function defaultState() {
   return {
-    auth: "app",
+    auth: "welcome",
     tab: "home",
     profile: {
       name: "도현",
@@ -354,6 +354,10 @@ function postsByAuthor(authorId) {
 }
 
 function render() {
+  const active = document.activeElement;
+  const activeField = active && app.contains(active) ? active.dataset.field : "";
+  const selStart = activeField && typeof active.selectionStart === "number" ? active.selectionStart : null;
+  const selEnd = activeField && typeof active.selectionEnd === "number" ? active.selectionEnd : null;
   const content = state.auth === "welcome"
     ? welcomeView()
     : state.auth === "signup"
@@ -362,6 +366,15 @@ function render() {
         ? loginView()
         : appView();
   app.innerHTML = `<div class="phone">${content}${busyView()}${toastView()}</div>`;
+  if (activeField) {
+    const el = app.querySelector(`[data-field="${activeField}"]`);
+    if (el) {
+      el.focus({ preventScroll: true });
+      if (selStart !== null && typeof el.setSelectionRange === "function") {
+        try { el.setSelectionRange(Math.min(selStart, el.value.length), Math.min(selEnd, el.value.length)); } catch {}
+      }
+    }
+  }
   afterRender();
 }
 
@@ -1050,6 +1063,7 @@ app.addEventListener("input", (event) => {
 app.addEventListener("change", (event) => {
   const field = event.target.dataset.field;
   if (!field) return;
+  if (["text", "search", "password", "email", "tel", "url"].includes(event.target.type)) return;
   setField(field, event.target.type === "checkbox" ? event.target.checked : event.target.value);
 });
 
@@ -1198,7 +1212,7 @@ function handleAction(action, el) {
     case "cancel-leave-confirm":
       return update((s) => { s.leave.confirm = false; });
     case "confirm-leave":
-      return localStorage.removeItem(STORAGE_KEY), state = defaultState(), state.leave = { open: true, reason: "", agree: false, confirm: false, done: true }, render();
+      return localStorage.removeItem(STORAGE_KEY), state = defaultState(), state.auth = "app", state.leave = { open: true, reason: "", agree: false, confirm: false, done: true }, render();
     case "finish-leave":
       return state = defaultState(), saveState(), render();
     case "my-topic":
