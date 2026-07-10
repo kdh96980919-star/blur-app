@@ -8,7 +8,8 @@ const avatarInput = document.querySelector("#avatar-input");
 // 허브 날짜는 서버(UTC) 기준 — 한국시간 오전 9시에 새 허브가 열림
 const HUB_DATE = api.hubDateToday();
 const topicDate = `${HUB_DATE.slice(5, 7)}. ${HUB_DATE.slice(8, 10)}`;
-let topic = api.topicForDate(HUB_DATE);
+// 주제는 운영자가 미리 승인한 것만 서버에서 내려옴 (없으면 빈 값 = 게시 잠금)
+let topic = "";
 
 const gradients = [
   "linear-gradient(135deg,#f7cedd,#b8d7d6 55%,#6c8093)",
@@ -91,6 +92,7 @@ let longPressTimer = null;
 let longPressFired = false;
 let toastTimer = null;
 let handleCheckTimer = null;
+let lastViewSig = "";
 
 // 데모(localStorage) 시절 데이터 정리 — 이제 데이터는 서버에 있음
 localStorage.removeItem(LEGACY_STORAGE_KEY);
@@ -190,9 +192,9 @@ async function loadAll(uid) {
     api.fetchPosts(),
     api.fetchFriendships(),
     api.fetchMyReveals(uid),
-    api.ensureTodayHub()
+    api.fetchTodayHub()
   ]);
-  if (topicText) topic = topicText;
+  topic = topicText || "";
   state.me = uid;
   state.people = profiles.map(mapProfile);
   const rawMine = profiles.find((row) => row.user_id === uid);
@@ -267,23 +269,83 @@ function validId(value) {
   return /^[a-z0-9_]{3,16}$/.test(value);
 }
 
-// 아이디 중복 검사 — 서버 RPC를 디바운스 호출, 결과는 signup.avail / edit.avail에 저장
+// 아이디 중복 검사 — 서버 RPC를 디바운스 호출, 결과는 signup.avail / edit.avail에 저장.
+// 재렌더 없이 힌트/버튼만 부분 패치 (타이핑 중 입력창을 교체하면 모바일 IME가 끊김)
 function scheduleHandleCheck(kind) {
   clearTimeout(handleCheckTimer);
   const target = () => (kind === "signup" ? state.signup : state.edit);
   const value = normalizeId(target()?.id || "");
-  const setAvail = (v) => update(() => { const t = target(); if (t) t.avail = v; });
-  if (!value) return setAvail(null);
-  if (!validId(value)) return setAvail(false);
-  if (kind === "edit" && value === state.profile.id) return setAvail(true);
-  setAvail("checking");
+  const apply = (v) => {
+    const t = target();
+    if (!t) return;
+    t.avail = v;
+    patchHandleHint(kind);
+  };
+  if (!value) return apply(null);
+  if (!validId(value)) return apply(false);
+  if (kind === "edit" && value === state.profile.id) return apply(true);
+  apply("checking");
   handleCheckTimer = setTimeout(async () => {
     const ok = await api.isHandleAvailable(value);
-    update(() => {
-      const t = target();
-      if (t && normalizeId(t.id) === value) t.avail = ok;
-    });
+    const t = target();
+    if (t && normalizeId(t.id) === value) {
+      t.avail = ok;
+      patchHandleHint(kind);
+    }
   }, 350);
+}
+
+// ---------------- 타이핑 중 부분 패치 (전체 재렌더 금지) ----------------
+
+function setHint(key, text, cls = "") {
+  const el = app.querySelector(`[data-hint="${key}"]`);
+  if (!el) return;
+  el.className = `hint ${cls}`.trim();
+  el.textContent = text;
+  el.style.display = text ? "" : "none";
+}
+
+function patchSignupSubmit() {
+  const btn = app.querySelector('[data-submit="signup"]');
+  if (!btn) return;
+  const on = signupEnabled();
+  btn.disabled = !on;
+  btn.classList.toggle("disabled", !on);
+}
+
+function patchHandleHint(kind) {
+  if (kind === "signup") {
+    const hint = signupIdHintState();
+    setHint("signup.id", hint.text, hint.cls);
+    patchSignupSubmit();
+  } else {
+    const hint = editIdHintState();
+    setHint("edit.id", hint.text, hint.cls);
+  }
+}
+
+function patchAfterInput(field, el) {
+  if (field === "signup.name") {
+    setHint("signup.name", `${state.signup.name.length}/12`);
+    patchSignupSubmit();
+  } else if (field === "signup.id") {
+    const norm = normalizeId(state.signup.id);
+    if (el.value !== norm) el.value = norm;
+    scheduleHandleCheck("signup");
+  } else if (field === "signup.pw") {
+    const hint = signupPwHintState();
+    setHint("signup.pw", hint.text, hint.cls);
+    patchSignupSubmit();
+  } else if (field === "edit.id") {
+    const norm = normalizeId(state.edit.id);
+    if (el.value !== norm) el.value = norm;
+    scheduleHandleCheck("edit");
+  } else if (field === "edit.bio") {
+    setHint("edit.bio", `${(state.edit.bio || "").length}/80`);
+  } else if (field === "search") {
+    const box = app.querySelector('[data-results="friends"]');
+    if (box) box.innerHTML = friendsListHtml();
+  }
 }
 
 function icon(name, size = 23) {
@@ -363,11 +425,27 @@ function postsForHome() {
 }
 
 function postsForAll() {
-  return state.posts.filter((post) => post.hubDate === HUB_DATE && post.public);
+  // 비공개 계정의 글은 '모두 공개'였더라도 전체 탭에서 숨김 (계정 전환 즉시 반영)
+  return state.posts.filter((post) => {
+    if (post.hubDate !== HUB_DATE || !post.public) return false;
+    return Boolean(personById(post.authorId)?.public);
+  });
 }
 
 function postsByAuthor(authorId) {
   return state.posts.filter((post) => post.authorId === authorId);
+}
+
+// 화면 구성(어떤 뷰·오버레이가 떠 있는지) 서명 — 같으면 재렌더 시 진입 애니메이션을 끔
+function viewSignature() {
+  const o = state.overlays;
+  return [
+    state.auth, state.tab, state.entered,
+    state.upload.open && state.upload.step,
+    o.commentsFor, o.friendUser, o.publicUser, o.privateUser, o.actionsFor,
+    o.settings, o.logout, o.viewerPost,
+    Boolean(state.edit), state.leave.open, state.leave.confirm, state.leave.done
+  ].join("|");
 }
 
 function render() {
@@ -375,6 +453,12 @@ function render() {
   const activeField = active && app.contains(active) ? active.dataset.field : "";
   const selStart = activeField && typeof active.selectionStart === "number" ? active.selectionStart : null;
   const selEnd = activeField && typeof active.selectionEnd === "number" ? active.selectionEnd : null;
+  const scrolls = [...app.querySelectorAll(".screen-scroll")].map((el) => el.scrollTop);
+  const oldCarousel = app.querySelector("[data-carousel]");
+  const carouselLeft = oldCarousel ? oldCarousel.scrollLeft : 0;
+  const sig = viewSignature();
+  const noAnim = sig === lastViewSig;
+  lastViewSig = sig;
   const content = state.auth === "loading"
     ? loadingView()
     : state.auth === "welcome"
@@ -384,7 +468,14 @@ function render() {
         : state.auth === "login"
           ? loginView()
           : appView();
-  app.innerHTML = `<div class="phone">${content}${busyView()}${toastView()}</div>`;
+  app.innerHTML = `<div class="phone${noAnim ? " no-anim" : ""}">${content}${busyView()}${toastView()}</div>`;
+  if (noAnim) {
+    [...app.querySelectorAll(".screen-scroll")].forEach((el, i) => {
+      if (scrolls[i]) el.scrollTop = scrolls[i];
+    });
+    const newCarousel = app.querySelector("[data-carousel]");
+    if (newCarousel && carouselLeft) newCarousel.scrollLeft = carouselLeft;
+  }
   if (activeField) {
     const el = app.querySelector(`[data-field="${activeField}"]`);
     if (el) {
@@ -419,29 +510,41 @@ function welcomeView() {
   </section>`;
 }
 
-function signupView() {
-  const nameOk = state.signup.name.trim().length > 0 && state.signup.name.trim().length <= 12;
+// 가입 폼 상태 헬퍼 — 렌더와 타이핑 중 부분 패치가 같은 로직을 공유
+function signupIdHintState() {
   const id = normalizeId(state.signup.id);
-  const idOk = validId(id);
   const avail = state.signup.avail;
-  const pwOk = state.signup.pw.length >= 6;
-  const enabled = nameOk && idOk && avail === true && pwOk;
-  let idHint = "영문 소문자, 숫자, _ 조합 3-16자";
-  let hintClass = "";
-  if (id) {
-    if (!idOk) {
-      idHint = "아이디는 3-16자의 영문/숫자/_만 가능해요";
-      hintClass = "bad";
-    } else if (avail === "checking") {
-      idHint = "아이디 확인 중…";
-    } else if (avail === false) {
-      idHint = "이미 사용 중인 아이디예요";
-      hintClass = "bad";
-    } else if (avail === true) {
-      idHint = "사용할 수 있는 아이디예요 · 나만 쓰는 고유한 이름이 돼요";
-      hintClass = "good";
-    }
-  }
+  if (!id) return { text: "영문 소문자, 숫자, _ 조합 3-16자", cls: "" };
+  if (!validId(id)) return { text: "아이디는 3-16자의 영문/숫자/_만 가능해요", cls: "bad" };
+  if (avail === "checking") return { text: "아이디 확인 중…", cls: "" };
+  if (avail === false) return { text: "이미 사용 중인 아이디예요", cls: "bad" };
+  if (avail === true) return { text: "사용할 수 있는 아이디예요 · 나만 쓰는 고유한 이름이 돼요", cls: "good" };
+  return { text: "영문 소문자, 숫자, _ 조합 3-16자", cls: "" };
+}
+
+function signupPwHintState() {
+  return state.signup.pw && state.signup.pw.length < 6
+    ? { text: "비밀번호는 6자 이상이어야 해요", cls: "bad" }
+    : { text: "", cls: "" };
+}
+
+function signupEnabled() {
+  const nameOk = state.signup.name.trim().length > 0 && state.signup.name.trim().length <= 12;
+  return nameOk && validId(normalizeId(state.signup.id)) && state.signup.avail === true && state.signup.pw.length >= 6;
+}
+
+function editIdHintState() {
+  const avail = state.edit?.avail;
+  if (avail === "checking") return { text: "아이디 확인 중…", cls: "" };
+  if (avail === false) return { text: "이미 사용 중이거나 형식이 맞지 않아요", cls: "bad" };
+  return { text: "사용할 수 있는 아이디예요", cls: "good" };
+}
+
+function signupView() {
+  const id = normalizeId(state.signup.id);
+  const enabled = signupEnabled();
+  const idHint = signupIdHintState();
+  const pwHint = signupPwHintState();
   return `<section class="screen">
     <div class="auth-card">
       <h1>blur 시작하기</h1>
@@ -449,17 +552,17 @@ function signupView() {
       <div class="auth-stack">
         <label>
           <input class="input" data-field="signup.name" maxlength="12" value="${escapeHtml(state.signup.name)}" placeholder="이름">
-          <div class="hint">${state.signup.name.length}/12</div>
+          <div class="hint" data-hint="signup.name">${state.signup.name.length}/12</div>
         </label>
         <label>
           <input class="input" data-field="signup.id" maxlength="16" value="${escapeHtml(id)}" placeholder="@아이디">
-          <div class="hint ${hintClass}">${idHint}</div>
+          <div class="hint ${idHint.cls}" data-hint="signup.id">${idHint.text}</div>
         </label>
         <label>
           <input class="input" type="password" data-field="signup.pw" value="${escapeHtml(state.signup.pw)}" placeholder="비밀번호 (6자 이상)">
-          ${state.signup.pw && !pwOk ? `<div class="hint bad">비밀번호는 6자 이상이어야 해요</div>` : ""}
+          <div class="hint ${pwHint.cls}" data-hint="signup.pw" ${pwHint.text ? "" : `style="display:none"`}>${pwHint.text}</div>
         </label>
-        <button class="btn ${enabled ? "" : "disabled"}" ${enabled ? "" : "disabled"} data-action="signup-submit">시작하기</button>
+        <button class="btn ${enabled ? "" : "disabled"}" ${enabled ? "" : "disabled"} data-submit="signup" data-action="signup-submit">시작하기</button>
         <button class="btn secondary" data-action="go-login">이미 계정이 있어요</button>
       </div>
     </div>
@@ -510,7 +613,7 @@ function homeView() {
           : `<button class="icon-btn" aria-label="사진 올리기" data-action="open-upload">${icon("camera", 19)}</button>`}
       </div>
     </div>
-    <div class="topic">${escapeHtml(topic)}</div>
+    <div class="topic">${topic ? escapeHtml(topic) : `<span style="color:var(--soft)">오늘의 주제를 준비하고 있어요</span>`}</div>
     ${posts.length ? `<div class="home-carousel" data-carousel>
       ${posts.map((post) => {
         const person = personById(post.authorId);
@@ -564,7 +667,7 @@ function allView() {
     <div class="topbar centered">
       <h1 class="title">전체</h1>
     </div>
-    <div class="topic-sub">"${escapeHtml(topic)}"</div>
+    <div class="topic-sub">${topic ? `"${escapeHtml(topic)}"` : "오늘의 주제를 준비하고 있어요"}</div>
     <div class="screen-scroll">
       <div class="masonry">
         <div class="masonry-col">${colA.map(card).join("")}</div>
@@ -575,6 +678,17 @@ function allView() {
 }
 
 function friendsView() {
+  return `<section class="screen">
+    <div class="topbar centered" style="display:block;padding:20px 26px 12px">
+      <h1 class="title">친구 <span style="font-size:14px;color:var(--point)">${state.friends.length}</span></h1>
+      <input class="input pill" style="margin-top:12px" data-field="search" value="${escapeHtml(state.search)}" placeholder="이름 또는 아이디 검색">
+    </div>
+    <div class="screen-scroll" data-results="friends">${friendsListHtml()}</div>
+  </section>`;
+}
+
+// 검색 결과 영역만 따로 그림 — 타이핑 중에는 이 영역만 부분 갱신 (입력창은 건드리지 않음)
+function friendsListHtml() {
   const query = state.search.trim().toLowerCase();
   const matches = (u) => !query || u.name.toLowerCase().includes(query) || u.id.includes(query);
   const friendUsers = state.friends
@@ -584,26 +698,18 @@ function friendsView() {
     .map((id) => personById(id))
     .filter((u) => u && matches(u));
   const recsShown = query ? recUsers : recUsers.slice(0, 5);
-  return `<section class="screen">
-    <div class="topbar centered" style="display:block;padding:20px 26px 12px">
-      <h1 class="title">친구 <span style="font-size:14px;color:var(--point)">${state.friends.length}</span></h1>
-      <input class="input pill" style="margin-top:12px" data-field="search" value="${escapeHtml(state.search)}" placeholder="이름 또는 아이디 검색">
-    </div>
-    <div class="screen-scroll">
-      ${state.reqs.length ? `<section class="section">
-        <h2 class="section-title">받은 친구 요청</h2>
-        <div class="row-list">${state.reqs.map((id) => personRow(personById(id), "request")).join("")}</div>
-      </section>` : ""}
-      <section class="section">
-        <h2 class="section-title">${query ? "사용자 검색" : "추천 친구"}</h2>
-        <div class="row-list">${recsShown.map((u) => personRow(u, "recommend")).join("") || `<div class="empty">${query ? "검색 결과가 없어요" : "추천할 친구를 찾는 중이에요"}</div>`}</div>
-      </section>
-      <section class="section">
-        <h2 class="section-title">내 친구</h2>
-        <div class="row-list">${friendUsers.map((u) => personRow(u, "friend")).join("") || `<div class="empty">검색 결과가 없어요</div>`}</div>
-      </section>
-    </div>
-  </section>`;
+  return `${state.reqs.length ? `<section class="section">
+      <h2 class="section-title">받은 친구 요청</h2>
+      <div class="row-list">${state.reqs.map((id) => personRow(personById(id), "request")).join("")}</div>
+    </section>` : ""}
+    <section class="section">
+      <h2 class="section-title">${query ? "사용자 검색" : "추천 친구"}</h2>
+      <div class="row-list">${recsShown.map((u) => personRow(u, "recommend")).join("") || `<div class="empty">${query ? "검색 결과가 없어요" : "추천할 친구를 찾는 중이에요"}</div>`}</div>
+    </section>
+    <section class="section">
+      <h2 class="section-title">내 친구</h2>
+      <div class="row-list">${friendUsers.map((u) => personRow(u, "friend")).join("") || `<div class="empty">검색 결과가 없어요</div>`}</div>
+    </section>`;
 }
 
 function personRow(user, mode) {
@@ -750,7 +856,7 @@ function uploadPreview(extraClass = "") {
     filter: up.filter,
     label: up.selectedLabel || "선택"
   };
-  return `<div style="width:${ratioWidth(up.ratio)};max-width:100%;margin:0 auto;transform:scale(${up.zoom});transform-origin:center" class="${extraClass}">
+  return `<div style="width:${ratioWidth(up.ratio)};max-width:100%;margin:0 auto" class="${extraClass}">
     ${mediaFrame(post, "large", { forceReveal: true, noReveal: true })}
   </div>`;
 }
@@ -765,20 +871,8 @@ function uploadEdit() {
       <div class="chip-row">${chips("ratio", [["1 / 1", "1:1"], ["4 / 5", "4:5"], ["16 / 9", "16:9"]])}</div>
     </div>
     <div>
-      <div class="section-title">확대 · 축소</div>
-      <div style="display:flex;align-items:center;gap:10px">
-        <span class="hint">－</span>
-        <input style="flex:1;accent-color:var(--accent)" type="range" min="1" max="1.5" step="0.05" data-field="upload.zoom" value="${up.zoom}">
-        <span class="hint">＋</span>
-      </div>
-    </div>
-    <div>
       <div class="section-title">필터</div>
       <div class="chip-row">${chips("filter", [["none", "원본"], ["warm", "따뜻"], ["vivid", "선명"], ["calm", "차분"], ["mono", "모노"]])}</div>
-    </div>
-    <div>
-      <div class="section-title">화면 분할</div>
-      <div class="chip-row">${chips("split", [[1, "없음"], [2, "2분할"], [4, "4분할"]])}</div>
     </div>
     <button class="btn" data-action="upload-next">다음</button>
   </div>`;
@@ -842,7 +936,7 @@ function profileView(userId, mode) {
 function editView() {
   const edit = state.edit;
   const id = normalizeId(edit.id);
-  const available = edit.avail !== false;
+  const idHint = editIdHintState();
   const bio = edit.bio || "";
   return `<section class="overlay">
     <div class="topbar">
@@ -864,12 +958,12 @@ function editView() {
       <label>
         <div class="section-title">아이디</div>
         <input class="input" maxlength="16" data-field="edit.id" value="${escapeHtml(id)}">
-        <div class="hint ${available ? "good" : "bad"}">${available ? "사용할 수 있는 아이디예요" : "이미 사용 중이거나 형식이 맞지 않아요"}</div>
+        <div class="hint ${idHint.cls}" data-hint="edit.id">${idHint.text}</div>
       </label>
       <label>
         <div class="section-title">소개</div>
         <textarea class="textarea" rows="3" maxlength="80" data-field="edit.bio" placeholder="하고 싶은 말, 직업, 나를 어필하는 한마디를 적어보세요">${escapeHtml(bio)}</textarea>
-        <div class="hint" style="text-align:right">${bio.length}/80</div>
+        <div class="hint" style="text-align:right" data-hint="edit.bio">${bio.length}/80</div>
       </label>
       <button class="btn" data-action="save-edit">저장하기</button>
     </div>
@@ -1124,14 +1218,21 @@ app.addEventListener("click", (event) => {
 app.addEventListener("input", (event) => {
   const field = event.target.dataset.field;
   if (!field) return;
-  setField(field, event.target.type === "checkbox" ? event.target.checked : event.target.value);
+  const el = event.target;
+  if (el.type === "checkbox" || el.type === "range") {
+    setField(field, el.type === "checkbox" ? el.checked : el.value);
+    return render();
+  }
+  // 텍스트 입력은 재렌더 금지 — 입력창이 교체되면 모바일 키보드가 리셋되고 한글 조합이 끊김
+  setField(field, el.value);
+  patchAfterInput(field, el);
 });
 
 app.addEventListener("change", (event) => {
   const field = event.target.dataset.field;
-  if (!field) return;
-  if (["text", "search", "password", "email", "tel", "url"].includes(event.target.type)) return;
-  setField(field, event.target.type === "checkbox" ? event.target.checked : event.target.value);
+  if (!field || event.target.type !== "checkbox") return;
+  setField(field, event.target.checked);
+  render();
 });
 
 app.addEventListener("pointerdown", (event) => {
@@ -1151,23 +1252,20 @@ app.addEventListener("pointerdown", (event) => {
   app.addEventListener(type, () => clearTimeout(longPressTimer));
 });
 
+// 상태만 갱신 — 렌더/패치는 호출한 쪽에서 결정
 function setField(field, value) {
-  update((s) => {
-    if (field === "signup.name") s.signup.name = String(value).slice(0, 12);
-    if (field === "signup.id") s.signup.id = normalizeId(value);
-    if (field === "signup.pw") s.signup.pw = String(value);
-    if (field === "login.id") s.login.id = String(value);
-    if (field === "login.password") s.login.password = String(value);
-    if (field === "search") s.search = String(value);
-    if (field === "upload.zoom") s.upload.zoom = Number(value);
-    if (field === "upload.caption") s.upload.caption = String(value).slice(0, 60);
-    if (field === "edit.name") s.edit.name = String(value).slice(0, 12);
-    if (field === "edit.id") s.edit.id = normalizeId(value);
-    if (field === "edit.bio") s.edit.bio = String(value).slice(0, 80);
-    if (field === "leave.agree") s.leave.agree = Boolean(value);
-  });
-  if (field === "signup.id") scheduleHandleCheck("signup");
-  if (field === "edit.id") scheduleHandleCheck("edit");
+  const s = state;
+  if (field === "signup.name") s.signup.name = String(value).slice(0, 12);
+  if (field === "signup.id") s.signup.id = normalizeId(value);
+  if (field === "signup.pw") s.signup.pw = String(value);
+  if (field === "login.id") s.login.id = String(value);
+  if (field === "login.password") s.login.password = String(value);
+  if (field === "search") s.search = String(value);
+  if (field === "upload.caption") s.upload.caption = String(value).slice(0, 60);
+  if (field === "edit.name") s.edit.name = String(value).slice(0, 12);
+  if (field === "edit.id") s.edit.id = normalizeId(value);
+  if (field === "edit.bio") s.edit.bio = String(value).slice(0, 80);
+  if (field === "leave.agree") s.leave.agree = Boolean(value);
 }
 
 function handleAction(action, el) {
@@ -1196,6 +1294,7 @@ function handleAction(action, el) {
     case "tab":
       return update((s) => { s.tab = el.dataset.tab; });
     case "open-upload":
+      if (!topic) return toast("오늘의 주제가 아직 공개되지 않았어요");
       return update((s) => { s.upload = { ...blankUpload(), open: true }; });
     case "upload-back":
       return uploadBack();

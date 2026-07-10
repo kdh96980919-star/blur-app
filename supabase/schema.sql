@@ -117,7 +117,8 @@ as $$
     );
 $$;
 
--- 게시물 열람 권한: 작성자 본인 / share_all 공개 글 / accepted 친구의 글
+-- 게시물 열람 권한: 작성자 본인 / accepted 친구 / (share_all + 공개 계정)
+-- 비공개 계정의 글은 share_all이어도 친구 외에는 안 보임 (migration-04)
 create or replace function public.can_view_post(p_post_id uuid)
 returns boolean
 language sql
@@ -130,8 +131,14 @@ as $$
     where p.id = p_post_id
       and (
         p.author_id = auth.uid()
-        or p.share_all
         or public.are_friends(p.author_id, auth.uid())
+        or (
+          p.share_all
+          and exists (
+            select 1 from public.profiles pr
+            where pr.user_id = p.author_id and pr.is_public
+          )
+        )
       )
   );
 $$;
@@ -183,21 +190,18 @@ create policy profiles_update_own on public.profiles
   using (user_id = auth.uid())
   with check (user_id = auth.uid());
 
--- posts: 본인 / 모두 공개 / 친구 글만 조회.
--- 단, 비공개 계정의 지난 허브 열람 차단은 "오늘이 아닌 글은 공개 계정이거나 친구일 때만"으로 처리
+-- posts: 본인 / 친구 / (share_all + 공개 계정) 글만 조회.
+-- 비공개 계정의 글은 share_all이어도 친구 외에는 안 보임 (migration-04)
 create policy posts_select on public.posts
   for select to authenticated
   using (
     author_id = auth.uid()
+    or public.are_friends(author_id, auth.uid())
     or (
-      (share_all or public.are_friends(author_id, auth.uid()))
-      and (
-        hub_date = current_date
-        or public.are_friends(author_id, auth.uid())
-        or exists (
-          select 1 from public.profiles pr
-          where pr.user_id = posts.author_id and pr.is_public
-        )
+      share_all
+      and exists (
+        select 1 from public.profiles pr
+        where pr.user_id = posts.author_id and pr.is_public
       )
     )
   );

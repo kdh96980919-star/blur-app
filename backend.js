@@ -14,7 +14,7 @@ export function hubDateToday() {
   return new Date().toISOString().slice(0, 10);
 }
 
-// 날짜 기반 결정론적 주제 — 모든 클라이언트가 같은 값을 계산
+// 주제 아이디어 풀 — topics-weekly.sql 채울 때 참고용 (클라이언트가 자동 게시하지 않음)
 const TOPIC_POOL = [
   "오늘 내가 지나친 작은 장면",
   "오늘 가장 오래 머문 자리",
@@ -87,14 +87,11 @@ export async function isHandleAvailable(handle) {
 
 // ---------------- 허브 ----------------
 
-export async function ensureTodayHub() {
-  const hubDate = hubDateToday();
-  const { data } = await supabase.from("hubs").select("topic").eq("hub_date", hubDate).maybeSingle();
-  if (data) return data.topic;
-  const topic = topicForDate(hubDate);
-  // migration-02의 hubs_insert_today 정책 필요 — 실패해도 결정론적 주제로 동작
-  await supabase.from("hubs").insert({ hub_date: hubDate, topic }).select().maybeSingle();
-  return topic;
+// 주제 승인제 (migration-04): 운영자가 supabase/topics-weekly.sql로 미리 승인한 주제만 읽는다.
+// 오늘 주제가 없으면 null — 클라이언트는 "주제 준비 중" 상태로 동작하고 게시가 잠긴다.
+export async function fetchTodayHub() {
+  const { data } = await supabase.from("hubs").select("topic").eq("hub_date", hubDateToday()).maybeSingle();
+  return data?.topic || null;
 }
 
 // ---------------- 데이터 로드 ----------------

@@ -110,6 +110,16 @@ textarea {
   min-width: 0;
 }
 
+/* 같은 화면을 다시 그릴 때(칩 선택, 토글 등)는 진입 애니메이션을 끔 — 화면 떨림 방지 */
+.phone.no-anim .screen,
+.phone.no-anim .overlay,
+.phone.no-anim .sheet,
+.phone.no-anim .dim,
+.phone.no-anim .welcome-hero,
+.phone.no-anim .welcome-auth {
+  animation: none;
+}
+
 .screen-scroll {
   flex: 1;
   overflow-y: auto;
