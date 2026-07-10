@@ -28,6 +28,7 @@ create table if not exists public.profiles (
   avatar_url text,
   is_public boolean not null default false,
   notif boolean not null default true,
+  bio text not null default '' check (char_length(bio) <= 80),
   created_at timestamptz not null default now(),
   constraint handle_format check (handle ~ '^[a-z0-9_]{3,16}$')
 );

@@ -22,7 +22,6 @@ const gradients = [
 ];
 
 const palette = ["#b06a92", "#6aa392", "#8f7cc2", "#d48b72", "#6d8aaa"];
-const emojiOptions = ["☁️", "🫶", "🌙", "🍑", "✨"];
 
 const gallery = gradients.map((grad, index) => ({
   id: `g${index + 1}`,
@@ -52,9 +51,10 @@ function defaultState() {
   return {
     auth: "loading",
     tab: "home",
+    entered: false,
     me: "",
     people: [],
-    profile: { name: "", id: "", color: palette[0], emoji: "", photo: "" },
+    profile: { name: "", id: "", color: palette[0], emoji: "", photo: "", bio: "" },
     myPublic: false,
     notif: true,
     myPosted: false,
@@ -121,6 +121,7 @@ function mapProfile(row) {
     color: row.color || palette[0],
     emoji: row.emoji || "",
     photo: row.avatar_url || "",
+    bio: row.bio || "",
     public: row.is_public
   };
 }
@@ -197,7 +198,7 @@ async function loadAll(uid) {
   const rawMine = profiles.find((row) => row.user_id === uid);
   if (rawMine) {
     const mine = mapProfile(rawMine);
-    state.profile = { name: mine.name, id: mine.id, color: mine.color, emoji: mine.emoji, photo: mine.photo };
+    state.profile = { name: mine.name, id: mine.id, color: mine.color, emoji: mine.emoji, photo: mine.photo, bio: mine.bio };
     state.myPublic = mine.public;
     state.notif = rawMine.notif !== false;
   }
@@ -285,16 +286,17 @@ function scheduleHandleCheck(kind) {
   }, 350);
 }
 
-function icon(name) {
-  const common = 'width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"';
+function icon(name, size = 23) {
+  const common = `width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"`;
   const icons = {
     sun: `<svg ${common}><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2.5M12 19.5V22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M2 12h2.5M19.5 12H22M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"></path></svg>`,
     grid: `<svg ${common}><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect></svg>`,
     users: `<svg ${common}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>`,
     user: `<svg ${common}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`,
-    camera: `<svg ${common.replace('width="23" height="23"', 'width="19" height="19"')}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>`,
-    image: `<svg ${common.replace('width="23" height="23"', 'width="15" height="15"')}><rect x="3" y="3" width="18" height="18" rx="3"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><path d="M21 15l-5-5L5 21"></path></svg>`,
-    settings: `<svg ${common.replace('width="23" height="23"', 'width="17" height="17"')}><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`
+    camera: `<svg ${common}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>`,
+    image: `<svg ${common}><rect x="3" y="3" width="18" height="18" rx="3"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><path d="M21 15l-5-5L5 21"></path></svg>`,
+    message: `<svg ${common}><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>`,
+    settings: `<svg ${common}><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`
   };
   return icons[name] || "";
 }
@@ -328,14 +330,13 @@ function mediaFrame(post, size = "large", options = {}) {
   const split = Number(post.split || 1);
   const tiles = split === 4 ? 4 : split;
   const columns = split === 4 ? "repeat(2, 1fr)" : `repeat(${tiles}, 1fr)`;
-  const label = post.authorId === "me" ? "내 사진" : "사진";
   const inner = post.image
     ? `<img class="media-img" src="${post.image}" alt="">`
     : `<div class="media-content" style="grid-template-columns:${columns}">
         ${Array.from({ length: tiles }, (_, i) => `<div style="background:${variantGradient(post, i)};filter:${toneFilter(post.filter)}"></div>`).join("")}
       </div>`;
   const overlay = revealed
-    ? `<div class="photo-label">[ ${label} · ${escapeHtml(post.label || "today")} ]</div>`
+    ? ""
     : `<div class="media-overlay">
         ${options.avatar ? `<div class="avatar-chip">${escapeHtml(options.avatar)}</div>` : ""}
         <div class="unlock-chip">${options.short ? "탭해서 풀기" : "탭해서 blur 풀기"}</div>
@@ -404,19 +405,17 @@ function loadingView() {
 }
 
 function welcomeView() {
-  return `<section class="screen welcome">
-    <div class="welcome-stack" aria-hidden="true">
-      <div class="welcome-card" style="background:${gradients[1]}"></div>
-      <div class="welcome-card" style="background:${gradients[4]}"></div>
-      <div class="welcome-card" style="background:${gradients[0]}"></div>
-    </div>
-    <h1>blur</h1>
-    <p>오늘의 주제 아래에서, 흐릿하게 도착한 친구의 장면을 탭해 선명하게 만나보세요.</p>
-    <div class="auth-stack">
-      <button class="btn" data-action="go-signup">시작하기</button>
-      <button class="btn secondary" data-action="go-login">이미 계정이 있어요</button>
-    </div>
-    <div class="hint">가입하면 서비스 이용약관과 개인정보 처리방침에 동의한 것으로 간주돼요.</div>
+  return `<section class="screen welcome" ${state.entered ? "" : `data-action="welcome-enter"`}>
+    <div class="welcome-hero">오늘이 선명해지는 순간,<br><span class="welcome-brand">blur</span></div>
+    ${state.entered
+      ? `<div class="welcome-auth">
+          <div class="auth-stack">
+            <button class="btn" data-action="go-signup">시작하기</button>
+            <button class="btn secondary" data-action="go-login">이미 계정이 있어요</button>
+          </div>
+          <div class="hint" style="margin-top:18px">가입하면 서비스 이용약관과 개인정보 처리방침에 동의한 것으로 간주돼요.</div>
+        </div>`
+      : `<div class="welcome-tap">화면을 탭해 시작하기</div>`}
   </section>`;
 }
 
@@ -504,11 +503,11 @@ function homeView() {
   return `<section class="screen">
     <div class="topbar">
       <div style="flex:1" class="brand logo">blur</div>
-      <div class="hub-date">TODAY'S HUB · ${escapeHtml(topicDate)}</div>
+      <div class="hub-date">${escapeHtml(topicDate)}</div>
       <div style="flex:1;display:flex;justify-content:flex-end">
         ${state.myPosted
-          ? `<div class="icon-btn" style="background:rgba(224,121,180,.16);color:var(--deep);box-shadow:none">✓</div>`
-          : `<button class="icon-btn" aria-label="사진 올리기" data-action="open-upload">${icon("camera")}</button>`}
+          ? `<div class="posted-badge" title="오늘 게시 완료"><span class="check">✓</span></div>`
+          : `<button class="icon-btn" aria-label="사진 올리기" data-action="open-upload">${icon("camera", 19)}</button>`}
       </div>
     </div>
     <div class="topic">${escapeHtml(topic)}</div>
@@ -519,16 +518,32 @@ function homeView() {
           <div class="post-card" style="width:${ratioWidth(post.ratio)};margin:0 auto">
             ${mediaFrame(post, "large", { avatar: initialFor(person) })}
             <div class="post-meta">
-              <div class="post-name">${escapeHtml(person?.name || "알 수 없음")} <span class="post-time">· ${escapeHtml(post.time)}</span></div>
-              <button class="text-link" style="background:transparent" data-action="open-comments" data-post="${post.id}">댓글 ${postComments(post).length}</button>
+              <div class="post-name">${escapeHtml(person?.name || "알 수 없음")} <span class="post-time">${escapeHtml(post.time)}</span></div>
+              <button class="msg-btn" aria-label="댓글" data-action="open-comments" data-post="${post.id}">${icon("message", 16)}</button>
             </div>
             ${post.caption ? `<div class="caption">${escapeHtml(post.caption)}</div>` : ""}
           </div>
         </article>`;
       }).join("")}
     </div>
-    <div class="dots">${posts.map((_, index) => `<span class="dot ${index === 0 ? "active" : ""}"></span>`).join("")}</div>` : `<div class="empty">아직 응답한 친구가 없어요</div>`}
+    ${carouselIndicator(posts.length, 0)}` : `<div class="empty">아직 응답한 친구가 없어요</div>`}
   </section>`;
+}
+
+/* 사진 수가 많아지면 점 대신 진행 바로 유연하게 전환 */
+function carouselIndicator(count, active) {
+  if (count <= 1) return `<div class="dots"></div>`;
+  if (count <= 7) {
+    return `<div class="dots" data-indicator data-count="${count}">
+      ${Array.from({ length: count }, (_, i) => `<span class="dot ${i === active ? "active" : ""}"></span>`).join("")}
+    </div>`;
+  }
+  const width = Math.max(14, 120 / count);
+  const left = (120 - width) * (active / (count - 1));
+  return `<div class="dots" data-indicator data-count="${count}">
+    <div class="progress-track"><div class="progress-thumb" style="width:${width}px;left:${left}px"></div></div>
+    <span class="progress-count">${active + 1} / ${count}</span>
+  </div>`;
 }
 
 function allView() {
@@ -540,18 +555,16 @@ function allView() {
     return `<article>
       ${mediaFrame(post, "small", { short: true })}
       <div class="post-meta" style="margin-top:6px">
-        <button class="post-name" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:transparent;text-align:left;cursor:pointer" data-action="open-person" data-user="${post.authorId}">${escapeHtml(person?.name || "알 수 없음")}</button>
-        <button class="text-link" style="background:transparent;font-size:10.5px" data-action="open-comments" data-post="${post.id}">댓글 ${postComments(post).length}</button>
+        <button class="post-name sm" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:transparent;text-align:left;cursor:pointer" data-action="open-person" data-user="${post.authorId}">${escapeHtml(person?.name || "알 수 없음")}</button>
+        <button class="msg-btn sm" aria-label="댓글" data-action="open-comments" data-post="${post.id}">${icon("message", 13)}</button>
       </div>
     </article>`;
   };
   return `<section class="screen">
     <div class="topbar centered">
-      <div>
-        <h1 class="title">모두</h1>
-        <div class="subtitle">"${escapeHtml(topic)}"</div>
-      </div>
+      <h1 class="title">전체</h1>
     </div>
+    <div class="topic-sub">"${escapeHtml(topic)}"</div>
     <div class="screen-scroll">
       <div class="masonry">
         <div class="masonry-col">${colA.map(card).join("")}</div>
@@ -572,7 +585,7 @@ function friendsView() {
     .filter((u) => u && matches(u));
   const recsShown = query ? recUsers : recUsers.slice(0, 5);
   return `<section class="screen">
-    <div class="topbar centered" style="display:block;padding-left:26px;padding-right:26px">
+    <div class="topbar centered" style="display:block;padding:20px 26px 12px">
       <h1 class="title">친구 <span style="font-size:14px;color:var(--point)">${state.friends.length}</span></h1>
       <input class="input pill" style="margin-top:12px" data-field="search" value="${escapeHtml(state.search)}" placeholder="이름 또는 아이디 검색">
     </div>
@@ -602,8 +615,8 @@ function personRow(user, mode) {
         <div class="person-name">${escapeHtml(user.name)}</div>
         <div class="person-id">@${escapeHtml(user.id)}${user.mutual ? ` · ${escapeHtml(user.mutual)}` : ""}</div>
       </div>
-      <button class="mini-btn" data-action="accept-request" data-user="${user.id}">수락</button>
-      <button class="mini-btn ghost" data-action="decline-request" data-user="${user.id}">거절</button>
+      <button class="act-btn accept" aria-label="수락" title="수락" data-action="accept-request" data-user="${user.id}">✓</button>
+      <button class="act-btn decline" aria-label="거절" title="거절" data-action="decline-request" data-user="${user.id}">✕</button>
     </div>`;
   }
   if (mode === "recommend") {
@@ -614,7 +627,7 @@ function personRow(user, mode) {
         <div class="person-name">${escapeHtml(user.name)}</div>
         <div class="person-id">@${escapeHtml(user.id)}${user.mutual ? ` · ${escapeHtml(user.mutual)}` : ""}</div>
       </div>
-      <button class="mini-btn ${sent ? "ghost" : ""}" data-action="send-request" data-user="${user.id}">${sent ? "요청 보냄" : "추가"}</button>
+      <button class="act-btn ${sent ? "sent" : "add"}" aria-label="${sent ? "요청 보냄" : "친구 추가"}" title="${sent ? "요청 보냄" : "친구 추가"}" data-action="send-request" data-user="${user.id}">${sent ? "✓" : "＋"}</button>
     </div>`;
   }
   return `<div class="person-row">
@@ -630,28 +643,23 @@ function personRow(user, mode) {
 function myView() {
   const my = personById("me");
   const archive = state.posts.filter((post) => post.authorId === "me");
+  const bio = (state.profile.bio || "").trim();
   return `<section class="screen">
-    <div class="topbar centered"><h1 class="title">마이</h1></div>
-    <div class="profile-head">
-      ${avatar(my, "profile-avatar")}
-      <div style="flex:1;min-width:0">
-        <div class="profile-name">${escapeHtml(state.profile.name)}</div>
-        <div class="profile-sub">@${escapeHtml(state.profile.id)} · 친구 ${state.friends.length}명</div>
+    <div class="topbar centered"><h1 class="title">룸</h1></div>
+    <div class="room-head">
+      ${avatar(my, "profile-avatar room-avatar")}
+      <div class="room-name">${escapeHtml(state.profile.name)}</div>
+      <div class="room-id">@${escapeHtml(state.profile.id)}</div>
+      ${bio
+        ? `<div class="room-bio">${escapeHtml(bio)}</div>`
+        : `<button class="room-bio empty" data-action="open-edit">나를 한 줄로 소개해보세요 ✎</button>`}
+      <div class="room-actions">
+        <button class="btn secondary" style="min-height:34px;padding:0 16px;font-size:12px;white-space:nowrap" data-action="open-edit">프로필 수정</button>
+        <button class="ghost-icon" aria-label="설정" data-action="open-settings">${icon("settings", 17)}</button>
       </div>
-      <button class="btn secondary" style="min-height:36px;padding:0 13px;font-size:11.5px;white-space:nowrap" data-action="open-edit">프로필 수정</button>
-      <button class="ghost-icon" aria-label="설정" data-action="open-settings">${icon("settings")}</button>
+      <div class="room-stat"><b>${state.visitors}</b>명이 내 오늘을 열어봤어요</div>
     </div>
-    <div class="glass-card stats-card">
-      <div style="display:flex;align-items:baseline;gap:8px">
-        <div class="stat-num">${state.visitors}</div>
-        <div style="font-size:13px;font-weight:800;color:#5c4a54">명이 오늘 내 응답을 열어봤어요</div>
-      </div>
-      <div class="hint">방문자 수는 나만 볼 수 있어요</div>
-    </div>
-    <div class="grid-title">
-      <div class="section-title" style="margin:0">내 허브 응답</div>
-      <div class="hint-line">탭: 주제 보기 · 길게 누르기: 크게 보기</div>
-    </div>
+    <div style="height:18px"></div>
     <div class="screen-scroll">
       ${archive.length
         ? `<div class="photo-grid">${archive.map((post, index) => gridTile(post, index)).join("")}</div>`
@@ -674,13 +682,13 @@ function gridTile(post) {
 function tabbar() {
   const tabs = [
     ["home", "오늘", "sun"],
-    ["all", "모두", "grid"],
+    ["all", "전체", "grid"],
     ["friends", "친구", "users"],
-    ["my", "마이", "user"]
+    ["my", "룸", "user"]
   ];
   return `<nav class="tabbar" aria-label="주 메뉴">
     ${tabs.map(([tab, label, iconName]) => `<button class="tab ${state.tab === tab ? "active" : ""}" data-action="tab" data-tab="${tab}" aria-label="${label}">
-      <i></i>${icon(iconName)}
+      ${icon(iconName, 20)}<span style="font-size:9px;font-weight:700">${label}</span>
     </button>`).join("")}
   </nav>`;
 }
@@ -707,7 +715,7 @@ function uploadView() {
   return `<section class="overlay">
     <div class="topbar">
       <button class="ghost-icon" data-action="upload-back">←</button>
-      <div style="font-weight:800;font-size:14px">${titles[up.step]}</div>
+      <div class="overlay-title">${titles[up.step]}</div>
       <div style="width:36px"></div>
     </div>
     <div style="padding:12px 26px 0;text-align:center">
@@ -726,7 +734,7 @@ function uploadPick() {
         <span class="photo-label">${item.label}</span><span class="tile-check">✓</span>
       </button>`).join("")}
     </div>
-    <div class="fixed-cta"><button class="btn" style="width:100%" ${selected || state.upload.selectedImage ? "" : "disabled"} data-action="upload-next">다음</button></div>
+    <div class="fixed-cta"><button class="btn ${selected || state.upload.selectedImage ? "" : "disabled"}" style="width:100%" ${selected || state.upload.selectedImage ? "" : "disabled"} data-action="upload-next">다음</button></div>
   </div>`;
 }
 
@@ -760,7 +768,7 @@ function uploadEdit() {
       <div class="section-title">확대 · 축소</div>
       <div style="display:flex;align-items:center;gap:10px">
         <span class="hint">－</span>
-        <input style="flex:1;accent-color:var(--brand)" type="range" min="1" max="1.5" step="0.05" data-field="upload.zoom" value="${up.zoom}">
+        <input style="flex:1;accent-color:var(--accent)" type="range" min="1" max="1.5" step="0.05" data-field="upload.zoom" value="${up.zoom}">
         <span class="hint">＋</span>
       </div>
     </div>
@@ -806,7 +814,7 @@ function profileView(userId, mode) {
   return `<section class="overlay">
     <div class="topbar">
       <button class="ghost-icon" data-action="${isPublic ? "close-public-profile" : "close-friend-profile"}">←</button>
-      <div style="font-weight:800;font-size:14px">${isPublic ? "프로필" : "친구 프로필"}</div>
+      <div class="overlay-title">${isPublic ? "프로필" : "친구 프로필"}</div>
       <div style="width:36px"></div>
     </div>
     <div class="profile-head" style="padding-top:22px">
@@ -835,21 +843,19 @@ function editView() {
   const edit = state.edit;
   const id = normalizeId(edit.id);
   const available = edit.avail !== false;
+  const bio = edit.bio || "";
   return `<section class="overlay">
     <div class="topbar">
       <button class="ghost-icon" data-action="close-edit">←</button>
-      <div style="font-weight:800;font-size:14px">프로필 수정</div>
+      <div class="overlay-title">프로필 수정</div>
       <div style="width:36px"></div>
     </div>
     <div class="screen-scroll" style="padding:24px 26px 40px;display:grid;gap:18px">
       <div style="display:grid;justify-items:center;gap:12px">
         ${edit.photo ? `<div class="profile-avatar" style="width:88px;height:88px;background:${edit.color}"><img src="${edit.photo}" alt=""></div>` : `<div class="profile-avatar" style="width:88px;height:88px;background:${edit.color};font-size:30px">${escapeHtml(edit.emoji || edit.name.slice(0, 1))}</div>`}
-        <div class="hint">프로필 사진 · 색, 이모지, 앨범 사진으로 꾸며보세요</div>
-        <div style="display:flex;gap:9px">${palette.map((color) => `<button class="round-btn" style="width:32px;height:32px;background:${color};box-shadow:${edit.color === color ? "0 0 0 3px rgba(74,53,64,.2)" : "none"}" data-action="set-edit-color" data-color="${color}" aria-label="색 선택"></button>`).join("")}</div>
-        <div style="display:flex;gap:8px">${emojiOptions.map((emoji) => `<button class="round-btn" style="width:36px;height:36px;border-radius:12px;background:${edit.emoji === emoji ? "rgba(224,121,180,.18)" : "rgba(255,255,255,.72)"};border:1px solid rgba(74,53,64,.1)" data-action="set-edit-emoji" data-emoji="${emoji}">${emoji}</button>`).join("")}</div>
-        <input class="input" style="text-align:center" data-field="edit.emojiFree" value="${escapeHtml(edit.emojiFree || "")}" placeholder="키보드로 아무 이모지나 입력해 보세요 🫶">
-        <button class="btn secondary" style="width:100%;border-style:dashed" data-action="pick-avatar">${icon("image")}<span style="margin-left:8px">앨범에서 사진 선택</span></button>
-        ${edit.photo ? `<button class="text-link" style="background:transparent;color:var(--danger)" data-action="clear-avatar">사진 지우기</button>` : ""}
+        <div class="hint">프로필 사진은 앨범에서만 선택할 수 있어요</div>
+        <button class="btn secondary" style="width:100%;border-style:dashed" data-action="pick-avatar">${icon("image", 15)}<span style="margin-left:8px">앨범에서 사진 선택</span></button>
+        ${edit.photo ? `<button class="text-link" style="color:var(--danger)" data-action="clear-avatar">사진 지우기</button>` : ""}
       </div>
       <label>
         <div class="section-title">이름</div>
@@ -860,6 +866,11 @@ function editView() {
         <input class="input" maxlength="16" data-field="edit.id" value="${escapeHtml(id)}">
         <div class="hint ${available ? "good" : "bad"}">${available ? "사용할 수 있는 아이디예요" : "이미 사용 중이거나 형식이 맞지 않아요"}</div>
       </label>
+      <label>
+        <div class="section-title">소개</div>
+        <textarea class="textarea" rows="3" maxlength="80" data-field="edit.bio" placeholder="하고 싶은 말, 직업, 나를 어필하는 한마디를 적어보세요">${escapeHtml(bio)}</textarea>
+        <div class="hint" style="text-align:right">${bio.length}/80</div>
+      </label>
       <button class="btn" data-action="save-edit">저장하기</button>
     </div>
   </section>`;
@@ -869,7 +880,7 @@ function settingsView() {
   return `<section class="overlay">
     <div class="topbar">
       <button class="ghost-icon" data-action="close-settings">←</button>
-      <div style="font-weight:800;font-size:14px">설정</div>
+      <div class="overlay-title">설정</div>
       <div style="width:36px"></div>
     </div>
     <div class="screen-scroll" style="padding:18px 24px 40px;display:grid;gap:16px">
@@ -891,7 +902,7 @@ function settingsView() {
         <div class="section-title">계정</div>
         <div style="display:grid;gap:8px">
           <button class="setting-row" style="text-align:left;cursor:pointer" data-action="open-logout"><div><div class="person-name">로그아웃</div><div class="person-id">다시 로그인하면 그대로 이어서 쓸 수 있어요</div></div><span>›</span></button>
-          <button class="setting-row" style="text-align:left;cursor:pointer;color:var(--danger)" data-action="open-leave"><div><div class="person-name" style="color:var(--danger)">회원 탈퇴</div><div class="person-id">모든 로컬 데이터 삭제</div></div><span>›</span></button>
+          <button class="setting-row" style="text-align:left;cursor:pointer;color:var(--danger)" data-action="open-leave"><div><div class="person-name" style="color:var(--danger)">회원 탈퇴</div><div class="person-id">모든 데이터 삭제</div></div><span>›</span></button>
         </div>
       </div>
       <div class="hint" style="text-align:center">blur 1.0.0</div>
@@ -911,8 +922,21 @@ function commentsSheet() {
         <div class="section-title" style="margin:0">댓글 ${comments.length}</div>
         <button class="ghost-icon" data-action="close-comments">✕</button>
       </div>
-      <div style="min-height:80px">
-        ${comments.length ? comments.map((c) => `<div class="comment-row ${c.by === "me" ? "mine" : ""}"><div class="comment-bubble">${escapeHtml(c.text)}</div></div>`).join("") : `<div class="empty" style="min-height:80px">아직 댓글이 없어요</div>`}
+      <div style="min-height:80px;max-height:260px;overflow-y:auto">
+        ${comments.length ? comments.map((c) => {
+          const person = personById(c.by);
+          const mine = c.by === "me";
+          return `<div class="comment-item ${mine ? "mine" : ""}">
+            ${avatar(person)}
+            <div class="comment-body">
+              <div class="comment-head">
+                <span class="comment-author">${escapeHtml(person?.name || "알 수 없음")}</span>
+                <span class="comment-handle">@${escapeHtml(person?.id || "")}</span>
+              </div>
+              <div class="comment-bubble">${escapeHtml(c.text)}</div>
+            </div>
+          </div>`;
+        }).join("") : `<div class="empty" style="min-height:80px">아직 댓글이 없어요</div>`}
       </div>
       <form data-action="send-comment" style="display:flex;gap:8px;margin-top:12px">
         <input id="comment-input" class="input pill" maxlength="100" placeholder="댓글을 남겨보세요">
@@ -990,7 +1014,7 @@ function leaveView() {
   return `<section class="overlay">
     <div class="topbar">
       <button class="ghost-icon" data-action="close-leave">←</button>
-      <div style="font-weight:800;font-size:14px">회원 탈퇴</div>
+      <div class="overlay-title">회원 탈퇴</div>
       <div style="width:36px"></div>
     </div>
     <div class="screen-scroll" style="padding:22px 24px 40px;display:grid;gap:14px">
@@ -1053,11 +1077,27 @@ function toastView() {
 
 function afterRender() {
   const carousel = document.querySelector("[data-carousel]");
-  if (carousel) {
+  const indicator = document.querySelector("[data-indicator]");
+  if (carousel && indicator) {
+    const count = Number(indicator.dataset.count);
     carousel.addEventListener("scroll", () => {
-      const slides = [...carousel.querySelectorAll(".home-slide")];
-      const index = Math.max(0, slides.findIndex((slide) => slide.getBoundingClientRect().left > 20));
-      document.querySelectorAll(".dot").forEach((dot, i) => dot.classList.toggle("active", i === Math.max(0, index)));
+      const slide = carousel.querySelector(".home-slide");
+      const step = slide ? slide.offsetWidth + 16 : carousel.clientWidth;
+      const active = Math.min(count - 1, Math.max(0, Math.round(carousel.scrollLeft / step)));
+      const dots = indicator.querySelectorAll(".dot");
+      if (dots.length) {
+        dots.forEach((dot, i) => dot.classList.toggle("active", i === active));
+        return;
+      }
+      const width = Math.max(14, 120 / count);
+      const left = (120 - width) * (active / (count - 1));
+      const thumb = indicator.querySelector(".progress-thumb");
+      const label = indicator.querySelector(".progress-count");
+      if (thumb) {
+        thumb.style.width = `${width}px`;
+        thumb.style.left = `${left}px`;
+      }
+      if (label) label.textContent = `${active + 1} / ${count}`;
     }, { passive: true });
   }
 }
@@ -1123,11 +1163,7 @@ function setField(field, value) {
     if (field === "upload.caption") s.upload.caption = String(value).slice(0, 60);
     if (field === "edit.name") s.edit.name = String(value).slice(0, 12);
     if (field === "edit.id") s.edit.id = normalizeId(value);
-    if (field === "edit.emojiFree") {
-      s.edit.emojiFree = String(value);
-      const last = lastGrapheme(value);
-      if (last) s.edit.emoji = last;
-    }
+    if (field === "edit.bio") s.edit.bio = String(value).slice(0, 80);
     if (field === "leave.agree") s.leave.agree = Boolean(value);
   });
   if (field === "signup.id") scheduleHandleCheck("signup");
@@ -1143,6 +1179,8 @@ function handleAction(action, el) {
     s.overlays.friendUser = "";
   };
   switch (action) {
+    case "welcome-enter":
+      return update((s) => { s.entered = true; });
     case "go-signup":
       return update((s) => { s.auth = "signup"; });
     case "go-login":
@@ -1207,13 +1245,9 @@ function handleAction(action, el) {
     case "block-friend":
       return friendAction("block", id);
     case "open-edit":
-      return update((s) => { s.edit = { ...s.profile, emojiFree: "", avail: true }; });
+      return update((s) => { s.edit = { ...s.profile, avail: true }; });
     case "close-edit":
       return update((s) => { s.edit = null; });
-    case "set-edit-color":
-      return update((s) => { s.edit.color = el.dataset.color; s.edit.photo = ""; });
-    case "set-edit-emoji":
-      return update((s) => { s.edit.emoji = el.dataset.emoji; s.edit.emojiFree = ""; s.edit.photo = ""; });
     case "pick-avatar":
       return avatarInput.click();
     case "clear-avatar":
@@ -1462,12 +1496,13 @@ async function saveEdit() {
     }
     const name = edit.name.trim().slice(0, 12);
     const emoji = edit.emoji || name.slice(0, 1);
-    await api.updateProfile(state.me, { handle: id, name, color: edit.color, emoji, avatar_url: avatarUrl || null });
+    const bio = (edit.bio || "").trim().slice(0, 80);
+    await api.updateProfile(state.me, { handle: id, name, color: edit.color, emoji, avatar_url: avatarUrl || null, bio });
     update((s) => {
       s.busy = "";
-      s.profile = { name, id, color: edit.color, emoji, photo: avatarUrl };
+      s.profile = { name, id, color: edit.color, emoji, photo: avatarUrl, bio };
       const mine = s.people.find((p) => p.uid === s.me);
-      if (mine) Object.assign(mine, { id, name, color: edit.color, emoji, photo: avatarUrl });
+      if (mine) Object.assign(mine, { id, name, color: edit.color, emoji, photo: avatarUrl, bio });
       s.edit = null;
     });
     toast("프로필을 저장했어요");
@@ -1491,16 +1526,6 @@ async function toggleSetting(key) {
     update((s) => { s[key] = !next; });
     toast(error.message || "설정을 바꾸지 못했어요");
   }
-}
-
-function lastGrapheme(value) {
-  const trimmed = String(value).trim();
-  if (!trimmed) return "";
-  if ("Segmenter" in Intl) {
-    const parts = [...new Intl.Segmenter("ko", { granularity: "grapheme" }).segment(trimmed)];
-    return parts.at(-1)?.segment || "";
-  }
-  return [...trimmed].at(-1) || "";
 }
 
 async function fileToDataUrl(file, maxSide = 1400) {
