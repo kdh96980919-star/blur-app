@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>blur — 오늘이 선명해지는 순간</title>
+<meta name="description" content="하루 한 주제, 흐리게 도착한 사진을 탭해서 풀어보는 지인망 사진 공유 앱 blur의 베타 소개 페이지">
+<meta name="theme-color" content="#0A0C18">
+<style>
+  @font-face {
+    font-family: 'SUIT Variable';
+    font-weight: 100 900;
+    font-display: swap;
+    src: url('https://cdn.jsdelivr.net/gh/sun-typeface/SUIT@2/fonts/variable/woff2/SUIT-Variable.woff2') format('woff2-variations');
+  }
+  :root {
+    color-scheme: dark;
+    --bg: #0A0C18;
+    --surface: #12152A;
+    --text: #C9CEED;
+    --text-muted: #8B90B8;
+    --periwinkle: #97A4E2;
+    --lavender: #C8CDE8;
+    --peach: #EFC5A8;
+    --border: #232741;
+    --card-glow: 0 0 24px rgba(151, 164, 226, .10);
+    --dawn-gradient: linear-gradient(135deg, #97A4E2 0%, #C8CDE8 45%, #EFC5A8 100%);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "SUIT Variable", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    font-size: 16px;
+    line-height: 1.7;
+    letter-spacing: -0.01em;
+    word-break: keep-all;
+    position: relative;
+    overflow-x: hidden;
+  }
+  /* 새벽빛 radial glow — 깊이감 (가이드: 1~2개, opacity 0.06~0.12) */
+  body::before, body::after {
+    content: "";
+    position: fixed;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 0;
+  }
+  body::before {
+    width: 640px; height: 640px;
+    top: -200px; right: -180px;
+    background: radial-gradient(circle, #97A4E2 0%, transparent 70%);
+    opacity: 0.11;
+  }
+  body::after {
+    width: 560px; height: 560px;
+    bottom: -220px; left: -200px;
+    background: radial-gradient(circle, #EFC5A8 0%, transparent 70%);
+    opacity: 0.07;
+  }
+  header, main, footer { position: relative; z-index: 1; }
+
+  .container { max-width: 720px; margin: 0 auto; padding: 0 20px; }
+  h1, h2, h3 { font-weight: 700; word-break: keep-all; }
+  h1 { font-size: 2rem; line-height: 1.35; }
+  h2 { font-size: 1.5rem; line-height: 1.4; }
+  h3 { font-size: 1.2rem; color: var(--lavender); }
+  /* 시그니처: 새벽빛 그라데이션 텍스트 (h1·h2) */
+  h1, h2 {
+    background: var(--dawn-gradient);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  section { margin: 64px 0; }
+  section h2 { margin-bottom: 24px; }
+  p + p { margin-top: 16px; }
+
+  /* ── 헤더 / 히어로 ── */
+  header.hero {
+    padding: 72px 0 56px;
+    text-align: center;
+  }
+  .logo-mark {
+    display: inline-block;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--lavender);
+    letter-spacing: 0.02em;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 4px 16px;
+    margin-bottom: 24px;
+    background: var(--surface);
+  }
+  .hero h1 { margin-bottom: 16px; }
+  .hero .tagline {
+    color: var(--text-muted);
+    max-width: 480px;
+    margin: 0 auto 8px;
+  }
+  .hero .date {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-bottom: 32px;
+  }
+  .cta {
+    display: inline-block;
+    background: var(--dawn-gradient);
+    color: #0A0C18;
+    font-weight: 700;
+    font-size: 1.05rem;
+    text-decoration: none;
+    padding: 14px 36px;
+    border-radius: 12px;
+    box-shadow: 0 0 24px rgba(239, 197, 168, .18);
+  }
+  .cta:hover { filter: brightness(1.05); }
+  .cta-sub {
+    display: block;
+    margin-top: 12px;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+  }
+
+  /* ── 블러 데모 ── */
+  .demo-wrap {
+    margin: 40px auto 0;
+    max-width: 300px;
+  }
+  .demo-card {
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    box-shadow: var(--card-glow);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .demo-topic {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+  }
+  .demo-topic strong { color: var(--lavender); font-weight: 600; }
+  .demo-photo-frame { position: relative; overflow: hidden; }
+  .demo-photo {
+    display: block;
+    width: 100%;
+    height: auto;
+    filter: blur(16px);
+    transform: scale(1.1);
+    transition: filter .5s ease, transform .5s ease;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .demo-photo { transition: none; }
+  }
+  .demo-card.revealed .demo-photo { filter: blur(0); transform: scale(1); }
+  .demo-chip {
+    position: absolute;
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(10, 12, 24, 0.65);
+    color: #E8EAF5;
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 8px 18px;
+    border-radius: 999px;
+    white-space: nowrap;
+    transition: opacity .4s ease;
+  }
+  .demo-card.revealed .demo-chip { opacity: 0; }
+  .demo-caption {
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-top: 12px;
+  }
+
+  /* ── 핵심 요약 카드 ── */
+  .summary-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  @media (min-width: 720px) {
+    .summary-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: var(--card-glow);
+  }
+  .card h3 { margin-bottom: 8px; }
+  .card p { font-size: 0.95rem; color: var(--text-muted); }
+
+  /* ── 사용 흐름 ── */
+  .steps { list-style: none; counter-reset: step; }
+  .steps li {
+    counter-increment: step;
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    padding: 16px 0;
+  }
+  .steps li + li { border-top: 1px solid var(--border); }
+  .steps li::before {
+    content: counter(step);
+    flex: 0 0 auto;
+    width: 32px; height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: rgba(151, 164, 226, .14);
+    border: 1px solid var(--border);
+    color: var(--periwinkle);
+    font-weight: 700;
+    font-size: 0.9rem;
+    margin-top: 4px;
+  }
+  .steps strong { display: block; color: var(--lavender); }
+  .steps span { color: var(--text-muted); font-size: 0.95rem; }
+
+  /* ── 기능 목록 ── */
+  .feature-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+    margin-top: 24px;
+  }
+  @media (min-width: 720px) {
+    .feature-grid { grid-template-columns: 1fr 1fr; }
+  }
+
+  /* ── 철학 ── */
+  .philosophy {
+    border-left: 3px solid var(--peach);
+    padding: 8px 0 8px 20px;
+    margin-top: 24px;
+  }
+  .philosophy p { color: var(--text-muted); }
+  /* 핵심 강조 문구 — 그라데이션 텍스트 허용 지점 */
+  .philosophy .lead {
+    font-weight: 700;
+    background: var(--dawn-gradient);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    display: inline-block;
+  }
+
+  /* ── 베타 안내 ── */
+  .beta-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 40px 24px;
+    text-align: center;
+    box-shadow: var(--card-glow);
+  }
+  .beta-box h2 { margin-bottom: 8px; }
+  .beta-box p { color: var(--text-muted); margin-bottom: 24px; }
+  .beta-note {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-top: 24px;
+  }
+
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 24px 0 40px;
+    margin-top: 64px;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    text-align: center;
+  }
+  footer a { color: var(--periwinkle); text-decoration: none; }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="container">
+    <span class="logo-mark">blur</span>
+    <h1>오늘이 선명해지는 순간, blur</h1>
+    <p class="tagline">하루 한 가지 주제, 흐리게 도착하는 친구의 사진.<br>탭해서 풀어보기 전까지는 아무도 모릅니다.</p>
+    <p class="date">지인 베타 진행 중 · 2026년 7월</p>
+    <a class="cta" href="https://kdh96980919-star.github.io/blur-app/" target="_blank" rel="noopener">베타 시작하기</a>
+    <span class="cta-sub">설치 없이 모바일 브라우저에서 바로 실행됩니다</span>
+
+    <div class="demo-wrap">
+      <div class="demo-card" id="demo" role="button" tabindex="0" aria-label="블러 풀기 데모 — 탭하면 사진이 선명해집니다">
+        <div class="demo-topic"><strong>오늘의 주제</strong><span>지금 하늘</span></div>
+        <div class="demo-photo-frame">
+          <svg class="demo-photo" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <defs>
+              <linearGradient id="dawn" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#232B54"/>
+                <stop offset="0.35" stop-color="#97A4E2"/>
+                <stop offset="0.68" stop-color="#C8CDE8"/>
+                <stop offset="1" stop-color="#EFC5A8"/>
+              </linearGradient>
+            </defs>
+            <rect width="300" height="300" fill="url(#dawn)"/>
+            <circle cx="150" cy="210" r="34" fill="#F7DCBE" opacity="0.95"/>
+            <ellipse cx="90" cy="110" rx="52" ry="12" fill="#E4E8F7" opacity="0.35"/>
+            <ellipse cx="215" cy="80" rx="64" ry="14" fill="#E4E8F7" opacity="0.28"/>
+            <ellipse cx="170" cy="150" rx="44" ry="10" fill="#F3E2D2" opacity="0.30"/>
+            <rect y="248" width="300" height="52" fill="#0A0C18"/>
+            <rect x="40" y="218" width="26" height="30" fill="#12152A"/>
+            <rect x="200" y="208" width="20" height="40" fill="#12152A"/>
+            <rect x="248" y="224" width="30" height="24" fill="#12152A"/>
+          </svg>
+          <span class="demo-chip">탭해서 blur 풀기</span>
+        </div>
+      </div>
+      <p class="demo-caption">위 카드를 직접 탭해보세요 — blur의 핵심 경험입니다.</p>
+    </div>
+  </div>
+</header>
+
+<main class="container">
+
+  <section aria-label="핵심 요약">
+    <h2>세 문장으로 요약하면</h2>
+    <div class="summary-grid">
+      <div class="card">
+        <h3>하루 한 주제</h3>
+        <p>매일 하나의 주제가 열립니다. 오늘의 주제에 맞는 사진 한 장이면 충분합니다.</p>
+      </div>
+      <div class="card">
+        <h3>흐림, 그리고 풀림</h3>
+        <p>친구의 사진은 흐린 채로 도착합니다. 탭해서 풀기 전까지의 기대감이 blur의 재미입니다.</p>
+      </div>
+      <div class="card">
+        <h3>좋아요 없음</h3>
+        <p>숫자 경쟁 대신 댓글로 대화합니다. 몇 명이 내 오늘을 열어봤는지만 조용히 알려줍니다.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>이렇게 씁니다</h2>
+    <ol class="steps">
+      <li><div><strong>오늘의 주제 확인</strong><span>앱을 열면 오늘 하루의 주제가 보입니다. 주제가 없는 날은 게시가 잠깁니다.</span></div></li>
+      <li><div><strong>사진 한 장 올리기</strong><span>사진 선택 → 자르기·필터 수정 → 마지막 확인, 3단계로 게시합니다.</span></div></li>
+      <li><div><strong>친구의 오늘을 풀어보기</strong><span>흐리게 도착한 친구들의 사진을 탭해서 선명하게 풀고, 댓글로 이야기를 나눕니다.</span></div></li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>지금 베타에 있는 기능</h2>
+    <div class="feature-grid">
+      <div class="card">
+        <h3>4개의 탭</h3>
+        <p>오늘 · 전체 · 친구 · 룸. 룸 탭에서는 내 프로필과 함께 "N명이 내 오늘을 열어봤어요" 열람 통계를 보여줍니다.</p>
+      </div>
+      <div class="card">
+        <h3>지인망 친구 관리</h3>
+        <p>친구 요청과 수락·거절, 삭제·차단까지. 아는 사람들과만 연결되는 작은 네트워크입니다.</p>
+      </div>
+      <div class="card">
+        <h3>공개 / 비공개 프로필</h3>
+        <p>계정을 비공개로 전환하면 기존 글까지 즉시 전체 탭에서 숨겨집니다. 프로필 사진과 한 줄 소개도 꾸밀 수 있습니다.</p>
+      </div>
+      <div class="card">
+        <h3>설치형 웹 앱 (PWA)</h3>
+        <p>앱스토어 없이 브라우저에서 바로 실행하고, 홈 화면에 추가하면 앱처럼 쓸 수 있습니다.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>왜 좋아요가 없나요</h2>
+    <p>좋아요 수를 쌓는 SNS는 잘 나온 한 장을 고르게 만들고, 결국 남의 하이라이트와 내 일상을 비교하게 합니다.</p>
+    <div class="philosophy">
+      <p><span class="lead">blur는 반대로 갑니다.</span></p>
+      <p>주제는 하루에 하나뿐이라 잘 꾸밀 여유가 없고, 사진은 흐리게 도착해 궁금해서 열어보게 됩니다. 반응은 숫자가 아니라 댓글 한 줄로 남습니다. 비교 대신 안부에 가까운 SNS를 만들고 있습니다.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="beta-box">
+      <h2>지인 베타에 함께해 주세요</h2>
+      <p>지금은 아는 사람들끼리 써보며 다듬는 단계입니다.<br>가입하고, 오늘의 주제에 사진 한 장 올려보세요.</p>
+      <a class="cta" href="https://kdh96980919-star.github.io/blur-app/" target="_blank" rel="noopener">blur 열어보기</a>
+      <p class="beta-note">모바일 브라우저 권장 · 홈 화면에 추가하면 앱처럼 사용 가능<br>베타 단계라 기능이 바뀌거나 일시적으로 불안정할 수 있습니다.</p>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="container">
+    blur 1.0.0 베타 · <a href="https://kdh96980919-star.github.io/blur-app/" target="_blank" rel="noopener">kdh96980919-star.github.io/blur-app</a><br>
+    이 페이지는 2026-07-11 기준 베타에 실제로 구현된 기능만 소개합니다.
+  </div>
+</footer>
+
+<script>
+  (function () {
+    var demo = document.getElementById("demo");
+    function toggle() { demo.classList.toggle("revealed"); }
+    demo.addEventListener("click", toggle);
+    demo.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); }
+    });
+  })();
+</script>
+
+</body>
+</html>
