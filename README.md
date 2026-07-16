@@ -5,6 +5,7 @@
 ## 라이브 배포 (2026-07-07)
 
 - **URL**: https://kdh96980919-star.github.io/blur-app/
+- **베타 초대 랜딩**: https://kdh96980919-star.github.io/blur-app/invite/ — 지인에게 보낼 소개 페이지 (소스 `invite/index.html`, 2026-07-11 배포)
 - **배포 저장소**: https://github.com/kdh96980919-star/blur-app (GitHub Pages, main 브랜치 루트)
 - 재배포 방법: 이 폴더의 파일을 수정한 뒤 `blur-app` 저장소를 clone해서 파일을 덮어쓰고 push하면 1~2분 내 반영됩니다.
 

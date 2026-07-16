@@ -1,8 +1,10 @@
 import * as api from "./backend.js";
 
 const LEGACY_STORAGE_KEY = "blur-service-state-v2";
+const NOTIF_SEEN_KEY = "blur-notif-seen";
 const app = document.querySelector("#app");
 const photoInput = document.querySelector("#photo-input");
+const albumInput = document.querySelector("#album-input");
 const avatarInput = document.querySelector("#avatar-input");
 
 // 허브 날짜는 서버(UTC) 기준 — 한국시간 오전 9시에 새 허브가 열림
@@ -40,6 +42,9 @@ function blankUpload() {
     selectedGrad: "",
     ratio: "4 / 5",
     zoom: 1,
+    rot: 0,
+    x: 0,
+    y: 0,
     filter: "none",
     split: 1,
     caption: "",
@@ -62,15 +67,22 @@ function defaultState() {
     visitors: 0,
     friends: [],
     reqs: [],
+    reqAt: {},
+    acceptedAt: [],
     recs: [],
+    fofMutual: {},
     sentRequests: {},
     posts: [],
     revealed: {},
+    hubTopics: {},
+    messages: [],
+    notifSeen: Number(localStorage.getItem(NOTIF_SEEN_KEY) || 0),
     signup: { name: "", id: "", pw: "", avail: null },
     login: { id: "", password: "", error: "" },
     search: "",
     upload: blankUpload(),
     edit: null,
+    postEdit: null,
     overlays: {
       commentsFor: "",
       privateUser: "",
@@ -78,6 +90,10 @@ function defaultState() {
       friendUser: "",
       actionsFor: "",
       settings: false,
+      archive: false,
+      purgeFor: "",
+      notif: false,
+      chatWith: "",
       logout: false,
       viewerPost: ""
     },
@@ -151,6 +167,7 @@ function mapPost(row) {
     authorId: handleOf(row.author_id),
     hubDate: row.hub_date,
     time: new Date(row.created_at).toTimeString().slice(0, 5),
+    at: Date.parse(row.created_at) || 0,
     caption: row.caption || "",
     ratio: row.ratio || "4 / 5",
     split: Number(row.split || 1),
@@ -158,44 +175,88 @@ function mapPost(row) {
     grad: gradients[((gradIndex % gradients.length) + gradients.length) % gradients.length],
     image: isGrad ? "" : row.image_url,
     public: Boolean(row.share_all),
+    archived: Boolean(row.archived),
     label: dayLabel(row.hub_date),
     comments: (row.comments || [])
       .slice()
       .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))
-      .map((c) => ({ by: c.author_id === state.me ? "me" : handleOf(c.author_id), text: c.body }))
+      .map((c) => ({
+        id: c.id,
+        by: c.author_id === state.me ? "me" : handleOf(c.author_id),
+        text: c.body,
+        at: Date.parse(c.created_at) || 0
+      }))
+  };
+}
+
+function mapMessage(row) {
+  return {
+    id: row.id,
+    from: row.sender_id === state.me ? "me" : handleOf(row.sender_id),
+    to: row.recipient_id === state.me ? "me" : handleOf(row.recipient_id),
+    body: row.body,
+    at: Date.parse(row.created_at) || 0,
+    read: Boolean(row.read_at)
   };
 }
 
 function applySocial(s, rows) {
   const friends = [];
   const reqs = [];
+  const reqAt = {};
+  const accepted = [];
   const sent = {};
   rows.forEach((row) => {
     const otherUid = row.user_a === s.me ? row.user_b : row.user_a;
     const handle = s.people.find((p) => p.uid === otherUid)?.id;
     if (!handle) return;
-    if (row.status === "accepted") friends.push(handle);
-    else if (row.status === "pending" && row.requested_by === s.me) sent[handle] = true;
-    else if (row.status === "pending") reqs.push(handle);
+    if (row.status === "accepted") {
+      friends.push(handle);
+      if (row.requested_by === s.me) accepted.push({ handle, at: Date.parse(row.created_at) || 0 });
+    } else if (row.status === "pending" && row.requested_by === s.me) sent[handle] = true;
+    else if (row.status === "pending") {
+      reqs.push(handle);
+      reqAt[handle] = Date.parse(row.created_at) || 0;
+    }
   });
   s.friends = friends;
   s.reqs = reqs;
+  s.reqAt = reqAt;
+  s.acceptedAt = accepted;
   s.sentRequests = sent;
+  // 추천 풀: 친구의 친구(RPC)가 우선, 그 뒤에 나머지 사용자 (applySuggestions에서 병합)
   s.recs = s.people
     .filter((p) => p.uid !== s.me && !friends.includes(p.id) && !reqs.includes(p.id))
     .map((p) => p.id);
 }
 
+// 친구의 친구를 추천 목록 맨 앞에 배치 (겹치는 친구 수 포함)
+function applySuggestions(s, suggestions) {
+  s.fofMutual = {};
+  if (!suggestions || !suggestions.length) return;
+  const fofHandles = [];
+  suggestions.forEach((row) => {
+    const handle = s.people.find((p) => p.uid === row.user_id)?.id;
+    if (!handle || s.friends.includes(handle) || s.reqs.includes(handle)) return;
+    fofHandles.push(handle);
+    s.fofMutual[handle] = Number(row.mutual_count || 0);
+  });
+  s.recs = [...fofHandles, ...s.recs.filter((id) => !fofHandles.includes(id))];
+}
+
 async function loadAll(uid) {
-  const [profiles, posts, friendRows, revealIds, topicText] = await Promise.all([
+  const [profiles, posts, friendRows, revealIds, hubTopics, suggestions, messageRows] = await Promise.all([
     api.fetchProfiles(),
     api.fetchPosts(),
     api.fetchFriendships(),
     api.fetchMyReveals(uid),
-    api.fetchTodayHub()
+    api.fetchHubs(),
+    api.fetchSuggestions().catch(() => null),
+    api.fetchMessages().catch(() => [])
   ]);
-  topic = topicText || "";
   state.me = uid;
+  state.hubTopics = hubTopics || {};
+  topic = state.hubTopics[HUB_DATE] || "";
   state.people = profiles.map(mapProfile);
   const rawMine = profiles.find((row) => row.user_id === uid);
   if (rawMine) {
@@ -206,11 +267,28 @@ async function loadAll(uid) {
   }
   state.posts = posts.map(mapPost);
   applySocial(state, friendRows);
+  applySuggestions(state, suggestions);
+  state.messages = messageRows.map(mapMessage);
   state.revealed = Object.fromEntries(revealIds.map((id) => [id, true]));
   state.posts.filter((p) => p.authorId === "me").forEach((p) => { state.revealed[p.id] = true; });
   const myToday = state.posts.find((p) => p.authorId === "me" && p.hubDate === HUB_DATE);
   state.myPosted = Boolean(myToday);
   state.visitors = myToday ? await api.countPostReveals(myToday.id, uid) : 0;
+}
+
+// 실시간 이벤트·탭 복귀 시 서버 데이터 재적재 (연타 방지 디바운스)
+let refreshTimer = null;
+function scheduleRefresh() {
+  clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(refreshData, 450);
+}
+
+async function refreshData() {
+  if (state.auth !== "app" || !state.me) return;
+  try {
+    await loadAll(state.me);
+    render();
+  } catch {}
 }
 
 async function boot() {
@@ -224,6 +302,10 @@ async function boot() {
     await loadAll(session.user.id);
     state.auth = "app";
     render();
+    api.subscribeRealtime(() => scheduleRefresh());
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") scheduleRefresh();
+    });
   } catch (error) {
     state = defaultState();
     state.auth = "welcome";
@@ -345,7 +427,17 @@ function patchAfterInput(field, el) {
   } else if (field === "search") {
     const box = app.querySelector('[data-results="friends"]');
     if (box) box.innerHTML = friendsListHtml();
+  } else if (field === "upload.zoom") {
+    patchUploadTransform();
   }
+}
+
+// 업로드 편집 프리뷰의 변형만 부분 패치 (드래그/슬라이더 중 전체 재렌더 금지)
+function patchUploadTransform() {
+  const img = app.querySelector("[data-upload-img]");
+  if (img) img.style.transform = uploadTransform(state.upload);
+  const range = app.querySelector(".zoom-range");
+  if (range && Number(range.value) !== state.upload.zoom) range.value = state.upload.zoom;
 }
 
 function icon(name, size = 23) {
@@ -358,6 +450,11 @@ function icon(name, size = 23) {
     camera: `<svg ${common}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>`,
     image: `<svg ${common}><rect x="3" y="3" width="18" height="18" rx="3"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><path d="M21 15l-5-5L5 21"></path></svg>`,
     message: `<svg ${common}><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>`,
+    bell: `<svg ${common}><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>`,
+    rotate: `<svg ${common}><path d="M23 4v6h-6"></path><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>`,
+    trash: `<svg ${common}><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`,
+    edit: `<svg ${common}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"></path></svg>`,
+    send: `<svg ${common}><path d="M22 2 11 13"></path><path d="M22 2 15 22l-4-9-9-4z"></path></svg>`,
     settings: `<svg ${common}><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`
   };
   return icons[name] || "";
@@ -369,14 +466,16 @@ function ratioWidth(ratio) {
   return "286px";
 }
 
+// 필터는 CSS 변수(--tone)로 실제 이미지에도 적용된다.
+// 값은 "none" 대신 saturate(1)을 기본으로 — blur()와 합성할 때 유효한 필터 목록을 유지하기 위함
 function toneFilter(name) {
   return {
-    warm: "saturate(1.08) sepia(.12)",
-    vivid: "saturate(1.32) contrast(1.06)",
-    calm: "saturate(.82) brightness(1.06)",
-    mono: "grayscale(.62)",
-    none: "none"
-  }[name] || "none";
+    warm: "sepia(.28) saturate(1.2) brightness(1.04) hue-rotate(-8deg)",
+    vivid: "saturate(1.5) contrast(1.14)",
+    calm: "saturate(.68) brightness(1.08) contrast(.94)",
+    mono: "grayscale(1) contrast(1.06)",
+    none: "saturate(1)"
+  }[name] || "saturate(1)";
 }
 
 function variantGradient(post, index) {
@@ -395,15 +494,13 @@ function mediaFrame(post, size = "large", options = {}) {
   const inner = post.image
     ? `<img class="media-img" src="${post.image}" alt="">`
     : `<div class="media-content" style="grid-template-columns:${columns}">
-        ${Array.from({ length: tiles }, (_, i) => `<div style="background:${variantGradient(post, i)};filter:${toneFilter(post.filter)}"></div>`).join("")}
+        ${Array.from({ length: tiles }, (_, i) => `<div style="background:${variantGradient(post, i)}"></div>`).join("")}
       </div>`;
-  const overlay = revealed
+  // 블러 상태 표시는 작성자 프로필 사진 원형만 — 사진 어디를 탭해도 풀린다
+  const overlay = revealed || !options.person
     ? ""
-    : `<div class="media-overlay">
-        ${options.avatar ? `<div class="avatar-chip">${escapeHtml(options.avatar)}</div>` : ""}
-        <div class="unlock-chip">${options.short ? "탭해서 풀기" : "탭해서 blur 풀기"}</div>
-      </div>`;
-  return `<div class="media-frame ${size} ${hiddenClass}" ${action} style="aspect-ratio:${ratio}">
+    : `<div class="media-overlay">${avatar(options.person, "avatar-chip")}</div>`;
+  return `<div class="media-frame ${size} ${hiddenClass}" ${action} style="aspect-ratio:${ratio};--tone:${toneFilter(post.filter)}">
     ${inner}
     ${overlay}
   </div>`;
@@ -421,19 +518,16 @@ function postComments(post) {
 }
 
 function postsForHome() {
-  return state.posts.filter((post) => post.hubDate === HUB_DATE && (post.authorId === "me" || state.friends.includes(post.authorId)));
+  return state.posts.filter((post) => post.hubDate === HUB_DATE && !post.archived && (post.authorId === "me" || state.friends.includes(post.authorId)));
 }
 
 function postsForAll() {
-  // 비공개 계정의 글은 '모두 공개'였더라도 전체 탭에서 숨김 (계정 전환 즉시 반영)
-  return state.posts.filter((post) => {
-    if (post.hubDate !== HUB_DATE || !post.public) return false;
-    return Boolean(personById(post.authorId)?.public);
-  });
+  // 베타 피드백 12: '모두 공개' 글은 친구를 포함한 모든 이용자의 것이 전체 탭에 보인다
+  return state.posts.filter((post) => post.hubDate === HUB_DATE && post.public && !post.archived);
 }
 
 function postsByAuthor(authorId) {
-  return state.posts.filter((post) => post.authorId === authorId);
+  return state.posts.filter((post) => post.authorId === authorId && !post.archived);
 }
 
 // 화면 구성(어떤 뷰·오버레이가 떠 있는지) 서명 — 같으면 재렌더 시 진입 애니메이션을 끔
@@ -443,8 +537,8 @@ function viewSignature() {
     state.auth, state.tab, state.entered,
     state.upload.open && state.upload.step,
     o.commentsFor, o.friendUser, o.publicUser, o.privateUser, o.actionsFor,
-    o.settings, o.logout, o.viewerPost,
-    Boolean(state.edit), state.leave.open, state.leave.confirm, state.leave.done
+    o.settings, o.archive, o.purgeFor, o.notif, o.chatWith, o.logout, o.viewerPost,
+    Boolean(state.edit), Boolean(state.postEdit), state.leave.open, state.leave.confirm, state.leave.done
   ].join("|");
 }
 
@@ -456,6 +550,10 @@ function render() {
   const scrolls = [...app.querySelectorAll(".screen-scroll")].map((el) => el.scrollTop);
   const oldCarousel = app.querySelector("[data-carousel]");
   const carouselLeft = oldCarousel ? oldCarousel.scrollLeft : 0;
+  const oldChat = app.querySelector("[data-chat-scroll]");
+  const chatState = oldChat
+    ? { top: oldChat.scrollTop, nearBottom: oldChat.scrollHeight - oldChat.scrollTop - oldChat.clientHeight < 140 }
+    : null;
   const sig = viewSignature();
   const noAnim = sig === lastViewSig;
   lastViewSig = sig;
@@ -484,6 +582,12 @@ function render() {
         try { el.setSelectionRange(Math.min(selStart, el.value.length), Math.min(selEnd, el.value.length)); } catch {}
       }
     }
+  }
+  const newChat = app.querySelector("[data-chat-scroll]");
+  if (newChat) {
+    // 새로 열렸거나 바닥 근처를 보고 있었다면 최신 메시지로, 위로 스크롤해 읽는 중이면 그 자리 유지
+    if (!chatState || chatState.nearBottom) newChat.scrollTop = newChat.scrollHeight;
+    else newChat.scrollTop = chatState.top;
   }
   afterRender();
 }
@@ -596,9 +700,32 @@ function appView() {
 
 function tabView() {
   if (state.tab === "all") return allView();
+  if (state.tab === "chat") return chatListView();
   if (state.tab === "friends") return friendsView();
   if (state.tab === "my") return myView();
   return homeView();
+}
+
+// 화면 높이에 따라 사진 폭을 줄여 이름·댓글이 잘리지 않게 하는 카드 폭 계산 (베타 피드백 3)
+function cardWidth(ratio) {
+  const ar = { "1 / 1": 1, "16 / 9": 16 / 9, "4 / 5": 0.8 }[ratio] || 0.8;
+  return `min(${ratioWidth(ratio)}, calc((100svh - 415px) * ${ar.toFixed(4)}), 100%)`;
+}
+
+function firstCommentHtml(post, cls = "") {
+  const first = (post.comments || [])[0];
+  if (!first) return "";
+  const person = personById(first.by);
+  return `<button class="comment-preview ${cls}" data-action="open-comments" data-post="${post.id}">
+    <b>${escapeHtml(person?.name || "")}</b> ${escapeHtml(first.text)}
+  </button>`;
+}
+
+function bellButton() {
+  const unseen = notifItems().filter((n) => n.at > state.notifSeen).length;
+  return `<button class="icon-btn bell" aria-label="알림" data-action="open-notif" data-unseen="${unseen}">
+    ${icon("bell", 18)}${unseen ? `<span class="bell-dot"></span>` : ""}
+  </button>`;
 }
 
 function homeView() {
@@ -607,22 +734,31 @@ function homeView() {
     <div class="topbar">
       <div style="flex:1" class="brand logo">blur</div>
       <div class="hub-date">${escapeHtml(topicDate)}</div>
-      <div style="flex:1;display:flex;justify-content:flex-end">
+      <div style="flex:1;display:flex;justify-content:flex-end;gap:8px">
         ${state.myPosted
           ? `<div class="posted-badge" title="오늘 게시 완료"><span class="check">✓</span></div>`
-          : `<button class="icon-btn" aria-label="사진 올리기" data-action="open-upload">${icon("camera", 19)}</button>`}
+          : `<button class="icon-btn plus" aria-label="사진 올리기" data-action="open-upload">＋</button>`}
+        ${bellButton()}
       </div>
     </div>
-    <div class="topic">${topic ? escapeHtml(topic) : `<span style="color:var(--soft)">오늘의 주제를 준비하고 있어요</span>`}</div>
+    <div class="hub-card">
+      <div class="hub-kicker">오늘의 허브</div>
+      <div class="hub-topic">${topic ? escapeHtml(topic) : `<span style="color:var(--soft)">주제를 준비하고 있어요</span>`}</div>
+    </div>
     ${posts.length ? `<div class="home-carousel" data-carousel>
       ${posts.map((post) => {
         const person = personById(post.authorId);
+        const mine = post.authorId === "me";
         return `<article class="home-slide">
-          <div class="post-card" style="width:${ratioWidth(post.ratio)};margin:0 auto">
-            ${mediaFrame(post, "large", { avatar: initialFor(person) })}
+          <div class="post-card" style="width:${cardWidth(post.ratio)};margin:0 auto">
+            ${mediaFrame(post, "large", { person })}
             <div class="post-meta">
               <div class="post-name">${escapeHtml(person?.name || "알 수 없음")} <span class="post-time">${escapeHtml(post.time)}</span></div>
-              <button class="msg-btn" aria-label="댓글" data-action="open-comments" data-post="${post.id}">${icon("message", 16)}</button>
+              <div class="meta-actions">
+                ${firstCommentHtml(post)}
+                <button class="msg-btn" aria-label="댓글" data-action="open-comments" data-post="${post.id}">${icon("message", 16)}</button>
+                ${mine ? `<button class="msg-btn" aria-label="게시물 관리" data-action="post-menu" data-post="${post.id}">${icon("edit", 14)}</button>` : ""}
+              </div>
             </div>
             ${post.caption ? `<div class="caption">${escapeHtml(post.caption)}</div>` : ""}
           </div>
@@ -656,10 +792,13 @@ function allView() {
   const card = (post) => {
     const person = personById(post.authorId);
     return `<article>
-      ${mediaFrame(post, "small", { short: true })}
+      ${mediaFrame(post, "small", { person })}
       <div class="post-meta" style="margin-top:6px">
         <button class="post-name sm" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:transparent;text-align:left;cursor:pointer" data-action="open-person" data-user="${post.authorId}">${escapeHtml(person?.name || "알 수 없음")}</button>
-        <button class="msg-btn sm" aria-label="댓글" data-action="open-comments" data-post="${post.id}">${icon("message", 13)}</button>
+        <div class="meta-actions">
+          ${firstCommentHtml(post, "sm")}
+          <button class="msg-btn sm" aria-label="댓글" data-action="open-comments" data-post="${post.id}">${icon("message", 13)}</button>
+        </div>
       </div>
     </article>`;
   };
@@ -695,7 +834,12 @@ function friendsListHtml() {
     .map((id) => personById(id))
     .filter((u) => u && matches(u));
   const recUsers = state.recs
-    .map((id) => personById(id))
+    .map((id) => {
+      const u = personById(id);
+      if (!u) return null;
+      const mutual = state.fofMutual[id];
+      return { ...u, mutual: mutual ? `함께 아는 친구 ${mutual}명` : "" };
+    })
     .filter((u) => u && matches(u));
   const recsShown = query ? recUsers : recUsers.slice(0, 5);
   return `${state.reqs.length ? `<section class="section">
@@ -728,11 +872,11 @@ function personRow(user, mode) {
   if (mode === "recommend") {
     const sent = state.sentRequests[user.id];
     return `<div class="person-row">
-      ${avatar(user)}
-      <div class="person-main">
+      <button style="background:transparent;padding:0" data-action="open-person" data-user="${user.id}">${avatar(user)}</button>
+      <button class="person-main" style="background:transparent;text-align:left;cursor:pointer" data-action="open-person" data-user="${user.id}">
         <div class="person-name">${escapeHtml(user.name)}</div>
         <div class="person-id">@${escapeHtml(user.id)}${user.mutual ? ` · ${escapeHtml(user.mutual)}` : ""}</div>
-      </div>
+      </button>
       <button class="act-btn ${sent ? "sent" : "add"}" aria-label="${sent ? "요청 보냄" : "친구 추가"}" title="${sent ? "요청 보냄" : "친구 추가"}" data-action="send-request" data-user="${user.id}">${sent ? "✓" : "＋"}</button>
     </div>`;
   }
@@ -748,7 +892,7 @@ function personRow(user, mode) {
 
 function myView() {
   const my = personById("me");
-  const archive = state.posts.filter((post) => post.authorId === "me");
+  const archive = state.posts.filter((post) => post.authorId === "me" && !post.archived);
   const bio = (state.profile.bio || "").trim();
   return `<section class="screen">
     <div class="topbar centered"><h1 class="title">룸</h1></div>
@@ -775,26 +919,34 @@ function myView() {
   </section>`;
 }
 
+// 룸 사진 탭 → 확대 뷰(날짜+허브 주제), 다시 탭하면 원래대로 (베타 피드백 10)
 function gridTile(post) {
   const isToday = post.hubDate === HUB_DATE;
   const displayPost = { ...post, ratio: "1 / 1" };
   const revealForce = !isToday || post.authorId !== "me" || state.revealed[post.id];
-  return `<div data-long-post="${post.id}" data-action="my-topic" data-post="${post.id}" style="position:relative">
-    ${mediaFrame(displayPost, "square", { forceReveal: revealForce, noReveal: true, square: true, short: true })}
+  return `<div data-long-post="${post.id}" data-action="open-viewer" data-post="${post.id}" style="position:relative">
+    ${mediaFrame(displayPost, "square", { forceReveal: revealForce, noReveal: true, square: true })}
     <div class="photo-label">${escapeHtml(isToday ? "오늘" : post.label || post.time)}</div>
   </div>`;
+}
+
+function unreadDmCount() {
+  return state.messages.filter((m) => m.to === "me" && !m.read).length;
 }
 
 function tabbar() {
   const tabs = [
     ["home", "오늘", "sun"],
     ["all", "전체", "grid"],
+    ["chat", "대화", "message"],
     ["friends", "친구", "users"],
     ["my", "룸", "user"]
   ];
+  const unread = unreadDmCount();
   return `<nav class="tabbar" aria-label="주 메뉴">
-    ${tabs.map(([tab, label, iconName]) => `<button class="tab ${state.tab === tab ? "active" : ""}" data-action="tab" data-tab="${tab}" aria-label="${label}">
+    ${tabs.map(([tab, label, iconName]) => `<button class="tab ${state.tab === tab ? "active" : ""}" data-action="tab" data-tab="${tab}" aria-label="${label}" style="position:relative">
       ${icon(iconName, 20)}<span style="font-size:9px;font-weight:700">${label}</span>
+      ${tab === "chat" && unread ? `<span class="tab-dot"></span>` : ""}
     </button>`).join("")}
   </nav>`;
 }
@@ -806,9 +958,14 @@ function overlayViews() {
     state.overlays.publicUser ? profileView(state.overlays.publicUser, "public") : "",
     state.edit ? editView() : "",
     state.overlays.settings ? settingsView() : "",
+    state.overlays.archive ? archiveView() : "",
+    state.overlays.chatWith ? chatRoomView() : "",
     state.leave.open ? leaveView() : "",
     state.overlays.viewerPost ? viewerView() : "",
     state.overlays.commentsFor ? commentsSheet() : "",
+    state.overlays.notif ? notifSheet() : "",
+    state.postEdit ? postMenuSheet() : "",
+    state.overlays.purgeFor ? purgeSheet() : "",
     state.overlays.privateUser ? privateProfileSheet() : "",
     state.overlays.actionsFor ? friendActionsSheet() : "",
     state.overlays.logout ? logoutSheet() : ""
@@ -835,7 +992,8 @@ function uploadPick() {
   const selected = state.upload.selectedId;
   return `<div class="screen-scroll" style="padding:18px 22px 110px">
     <div class="upload-grid">
-      <button class="camera-tile" data-action="pick-photo"><span style="font-size:22px">＋</span><span style="font-size:10.5px">카메라</span></button>
+      <button class="camera-tile" data-action="pick-photo">${icon("camera", 20)}<span style="font-size:10.5px">카메라</span></button>
+      <button class="camera-tile" data-action="pick-album">${icon("image", 20)}<span style="font-size:10.5px">앨범</span></button>
       ${gallery.map((item) => `<button class="gallery-tile ${selected === item.id ? "selected" : ""}" style="background:${item.grad}" data-action="pick-gallery" data-gallery="${item.id}">
         <span class="photo-label">${item.label}</span><span class="tile-check">✓</span>
       </button>`).join("")}
@@ -844,19 +1002,32 @@ function uploadPick() {
   </div>`;
 }
 
-function uploadPreview(extraClass = "") {
+// 인스타 스토리처럼 드래그·핀치·슬라이더·회전으로 사진을 조정한 상태 (베타 피드백 1)
+function uploadTransform(up) {
+  return `translate(${up.x || 0}px, ${up.y || 0}px) rotate(${up.rot || 0}deg) scale(${up.zoom || 1})`;
+}
+
+function uploadPreview(interactive = false) {
   const up = state.upload;
+  if (up.selectedImage) {
+    return `<div style="width:${ratioWidth(up.ratio)};max-width:100%;margin:0 auto">
+      <div class="media-frame large revealed upload-frame" data-upload-frame style="aspect-ratio:${up.ratio};--tone:${toneFilter(up.filter)}" ${interactive ? `data-drag-canvas` : ""}>
+        <img class="media-img" src="${up.selectedImage}" alt="" draggable="false"
+          style="transform:${uploadTransform(up)};transition:none" data-upload-img>
+      </div>
+    </div>`;
+  }
   const post = {
     id: "upload-preview",
     authorId: "me",
     ratio: up.ratio,
     split: up.split,
     grad: up.selectedGrad || gradients[0],
-    image: up.selectedImage,
+    image: "",
     filter: up.filter,
     label: up.selectedLabel || "선택"
   };
-  return `<div style="width:${ratioWidth(up.ratio)};max-width:100%;margin:0 auto" class="${extraClass}">
+  return `<div style="width:${ratioWidth(up.ratio)};max-width:100%;margin:0 auto">
     ${mediaFrame(post, "large", { forceReveal: true, noReveal: true })}
   </div>`;
 }
@@ -865,7 +1036,17 @@ function uploadEdit() {
   const up = state.upload;
   const chips = (name, values) => values.map(([value, label]) => `<button class="chip ${up[name] == value ? "active" : ""}" data-action="set-upload" data-key="${name}" data-value="${value}">${label}</button>`).join("");
   return `<div class="screen-scroll" style="padding:16px 24px 34px;display:grid;gap:14px">
-    ${uploadPreview()}
+    ${uploadPreview(true)}
+    ${up.selectedImage ? `<div>
+      <div class="section-title" style="display:flex;justify-content:space-between;align-items:center">크기·회전
+        <span style="display:flex;gap:6px">
+          <button class="chip" data-action="rotate-upload">${icon("rotate", 13)}<span style="margin-left:5px">90°</span></button>
+          <button class="chip" data-action="reset-transform">초기화</button>
+        </span>
+      </div>
+      <input type="range" class="zoom-range" min="1" max="3" step="0.01" value="${up.zoom || 1}" data-field="upload.zoom" aria-label="확대">
+      <div class="hint" style="margin-top:4px">사진을 드래그해 위치를 옮기고, 두 손가락으로 확대할 수 있어요</div>
+    </div>` : ""}
     <div>
       <div class="section-title">자르기</div>
       <div class="chip-row">${chips("ratio", [["1 / 1", "1:1"], ["4 / 5", "4:5"], ["16 / 9", "16:9"]])}</div>
@@ -920,7 +1101,9 @@ function profileView(userId, mode) {
           ${isPublic ? `<span class="badge public">공개 계정</span>` : `<span class="profile-sub">친구</span>`}
         </div>
       </div>
-      ${isPublic && !state.friends.includes(userId) ? `<button class="mini-btn ${sent ? "ghost" : ""}" data-action="send-request" data-user="${userId}">${sent ? "요청 보냄" : "친구 요청"}</button>` : ""}
+      ${state.friends.includes(userId)
+        ? `<button class="msg-btn" style="width:38px;height:38px" aria-label="메시지" data-action="open-chat" data-user="${userId}">${icon("message", 17)}</button>`
+        : isPublic ? `<button class="mini-btn ${sent ? "ghost" : ""}" data-action="send-request" data-user="${userId}">${sent ? "요청 보냄" : "친구 요청"}</button>` : ""}
     </div>
     <div class="grid-title"><div class="section-title" style="margin:0">${escapeHtml(user.name)}님의 허브 응답</div></div>
     <div class="screen-scroll">
@@ -993,6 +1176,12 @@ function settingsView() {
         </div>
       </div>
       <div>
+        <div class="section-title">보관함</div>
+        <div style="display:grid;gap:8px">
+          <button class="setting-row" style="text-align:left;cursor:pointer" data-action="open-archive"><div><div class="person-name">보관</div><div class="person-id">룸에서 삭제한 허브 사진 보기·영구 삭제</div></div><span>›</span></button>
+        </div>
+      </div>
+      <div>
         <div class="section-title">계정</div>
         <div style="display:grid;gap:8px">
           <button class="setting-row" style="text-align:left;cursor:pointer" data-action="open-logout"><div><div class="person-name">로그아웃</div><div class="person-id">다시 로그인하면 그대로 이어서 쓸 수 있어요</div></div><span>›</span></button>
@@ -1020,12 +1209,13 @@ function commentsSheet() {
         ${comments.length ? comments.map((c) => {
           const person = personById(c.by);
           const mine = c.by === "me";
-          return `<div class="comment-item ${mine ? "mine" : ""}">
+          return `<div class="comment-item">
             ${avatar(person)}
             <div class="comment-body">
               <div class="comment-head">
                 <span class="comment-author">${escapeHtml(person?.name || "알 수 없음")}</span>
                 <span class="comment-handle">@${escapeHtml(person?.id || "")}</span>
+                ${mine && c.id ? `<button class="comment-del" aria-label="댓글 삭제" data-action="delete-comment" data-comment="${c.id}" data-post="${post.id}">✕</button>` : ""}
               </div>
               <div class="comment-bubble">${escapeHtml(c.text)}</div>
             </div>
@@ -1143,15 +1333,227 @@ function leaveView() {
   </section>`;
 }
 
+// 룸 사진 확대 뷰 — 사진 아래 날짜·허브 주제, 사진(화면)을 다시 탭하면 닫힘 (베타 피드백 10)
 function viewerView() {
-  const post = state.posts.find((p) => p.id === state.overlays.viewerPost) || { id: "viewer", authorId: "me", ratio: "4 / 5", split: 1, grad: gradients[0], label: "sample" };
-  return `<section class="viewer">
-    <button class="ghost-icon" style="align-self:flex-start;background:rgba(255,255,255,.12);color:#fff" data-action="close-viewer">✕</button>
-    ${mediaFrame(post, "large", { forceReveal: true, noReveal: true })}
-    <div>
-      <div style="font-size:12px;color:rgba(255,255,255,.64)">${escapeHtml(topicDate)} 허브</div>
-      <div style="font-size:20px;font-weight:800;margin-top:4px">${escapeHtml(topic)}</div>
+  const post = state.posts.find((p) => p.id === state.overlays.viewerPost) || { id: "viewer", authorId: "me", hubDate: HUB_DATE, ratio: "4 / 5", split: 1, grad: gradients[0], label: "sample" };
+  const dateLabel = `${post.hubDate.slice(5, 7)}. ${post.hubDate.slice(8, 10)}`;
+  const hubTopic = state.hubTopics[post.hubDate] || "";
+  const mine = post.authorId === "me";
+  return `<section class="viewer" data-action="close-viewer">
+    <div class="viewer-zoom">
+      ${mediaFrame(post, "large", { forceReveal: true, noReveal: true })}
+      <div style="text-align:center">
+        <div style="font-size:12px;color:rgba(255,255,255,.64)">${escapeHtml(dateLabel)} 허브</div>
+        <div style="font-size:19px;font-weight:800;margin-top:4px">${escapeHtml(hubTopic)}</div>
+      </div>
+      ${mine && !post.archived ? `<button class="btn secondary viewer-archive" data-action="archive-post" data-post="${post.id}">${icon("trash", 15)}<span style="margin-left:7px">룸에서 삭제 (보관으로 이동)</span></button>` : ""}
     </div>
+  </section>`;
+}
+
+// 설정 > 보관 — 룸에서 삭제한 사진 열람·복원·영구 삭제 (베타 피드백 6)
+function archiveView() {
+  const archived = state.posts.filter((post) => post.authorId === "me" && post.archived);
+  return `<section class="overlay">
+    <div class="topbar">
+      <button class="ghost-icon" data-action="close-archive">←</button>
+      <div class="overlay-title">보관</div>
+      <div style="width:36px"></div>
+    </div>
+    <div class="hint" style="padding:10px 26px 0;text-align:center">룸에서 삭제한 사진이에요. 나에게만 보이고, 여기서 영구 삭제할 수 있어요.</div>
+    <div class="screen-scroll" style="padding-top:16px">
+      ${archived.length ? `<div class="photo-grid">${archived.map((post) => `
+        <div style="position:relative">
+          ${mediaFrame({ ...post, ratio: "1 / 1" }, "square", { forceReveal: true, noReveal: true, square: true })}
+          <div class="photo-label">${escapeHtml(post.label || "")}</div>
+          <div class="archive-actions">
+            <button class="chip" data-action="restore-post" data-post="${post.id}">복원</button>
+            <button class="chip danger" data-action="ask-purge" data-post="${post.id}">삭제</button>
+          </div>
+        </div>`).join("")}</div>` : `<div class="empty">보관된 사진이 없어요</div>`}
+    </div>
+  </section>`;
+}
+
+function purgeSheet() {
+  return `<div>
+    <div class="dim" data-action="cancel-purge"></div>
+    <section class="sheet">
+      <div class="handle"></div>
+      <div class="section-title">사진을 영구 삭제할까요?</div>
+      <p class="hint" style="line-height:1.6">삭제한 사진은 되돌릴 수 없어요. 댓글도 함께 삭제됩니다.</p>
+      <div style="display:grid;gap:8px;margin-top:18px">
+        <button class="btn danger" data-action="confirm-purge">영구 삭제</button>
+        <button class="btn secondary" data-action="cancel-purge">돌아가기</button>
+      </div>
+    </section>
+  </div>`;
+}
+
+// 알림 목록 — 친구 요청·수락, 친구의 오늘 게시, 내 게시물 댓글 (베타 피드백 8)
+function notifItems() {
+  const items = [];
+  state.reqs.forEach((handle) => items.push({
+    type: "req", by: handle, at: state.reqAt[handle] || 0, text: "친구 요청을 보냈어요"
+  }));
+  state.acceptedAt.forEach(({ handle, at }) => items.push({
+    type: "accept", by: handle, at, text: "친구 요청을 수락했어요"
+  }));
+  state.posts
+    .filter((p) => p.hubDate === HUB_DATE && !p.archived && p.authorId !== "me" && state.friends.includes(p.authorId))
+    .forEach((p) => items.push({ type: "post", by: p.authorId, at: p.at, post: p.id, text: "오늘의 허브에 응답했어요" }));
+  state.posts
+    .filter((p) => p.authorId === "me")
+    .forEach((p) => (p.comments || []).filter((c) => c.by !== "me").forEach((c) => items.push({
+      type: "comment", by: c.by, at: c.at, post: p.id, text: `내 게시물에 댓글: “${c.text.slice(0, 24)}”`
+    })));
+  return items.sort((a, b) => b.at - a.at).slice(0, 30);
+}
+
+function timeAgo(at) {
+  if (!at) return "";
+  const diff = Date.now() - at;
+  if (diff < 60000) return "방금";
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}분 전`;
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}시간 전`;
+  return `${Math.floor(diff / 86400000)}일 전`;
+}
+
+function notifSheet() {
+  const items = notifItems();
+  return `<div>
+    <div class="dim" data-action="close-notif"></div>
+    <section class="sheet">
+      <div class="handle"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div class="section-title" style="margin:0">알림</div>
+        <button class="ghost-icon" data-action="close-notif">✕</button>
+      </div>
+      <div style="min-height:80px;max-height:320px;overflow-y:auto;display:grid;gap:8px">
+        ${items.length ? items.map((item) => {
+          const person = personById(item.by);
+          const action = item.type === "req" || item.type === "accept"
+            ? `data-action="notif-friends"`
+            : `data-action="notif-post" data-post="${item.post}" data-kind="${item.type}"`;
+          return `<button class="person-row" style="cursor:pointer;text-align:left" ${action}>
+            ${avatar(person)}
+            <div class="person-main">
+              <div class="person-name" style="font-weight:500"><b>${escapeHtml(person?.name || "알 수 없음")}</b>님이 ${escapeHtml(item.text)}</div>
+              <div class="person-id">${timeAgo(item.at)}</div>
+            </div>
+          </button>`;
+        }).join("") : `<div class="empty" style="min-height:80px">아직 알림이 없어요</div>`}
+      </div>
+    </section>
+  </div>`;
+}
+
+// 내 게시물 관리 — 글(캡션) 수정·게시물 삭제 (베타 피드백 11)
+function postMenuSheet() {
+  const pe = state.postEdit;
+  const post = state.posts.find((p) => p.id === pe?.id);
+  if (!post) return "";
+  return `<div>
+    <div class="dim" data-action="close-post-menu"></div>
+    <section class="sheet">
+      <div class="handle"></div>
+      <div class="section-title">내 게시물 관리</div>
+      <div style="display:grid;gap:10px;margin-top:6px">
+        <label>
+          <div class="hint" style="margin:0 0 6px">한 줄 글 (수정·추가·삭제)</div>
+          <input class="input" maxlength="60" data-field="postEdit.caption" value="${escapeHtml(pe.caption)}" placeholder="한 줄 남기기 (비우면 삭제)">
+        </label>
+        <button class="btn" data-action="save-post-edit">글 저장</button>
+        <button class="btn secondary" style="color:var(--danger);border-color:rgba(192,69,69,.3)" data-action="delete-post" data-post="${post.id}">${icon("trash", 15)}<span style="margin-left:7px">사진 삭제</span></button>
+      </div>
+    </section>
+  </div>`;
+}
+
+// ---------------- 대화(DM) ----------------
+
+function threadList() {
+  const map = new Map();
+  state.messages.forEach((m) => {
+    const other = m.from === "me" ? m.to : m.from;
+    if (!other || other === "me") return;
+    const cur = map.get(other) || { handle: other, last: null, unread: 0 };
+    if (!cur.last || m.at > cur.last.at) cur.last = m;
+    if (m.to === "me" && !m.read) cur.unread += 1;
+    map.set(other, cur);
+  });
+  return [...map.values()].sort((a, b) => (b.last?.at || 0) - (a.last?.at || 0));
+}
+
+function chatListView() {
+  const threads = threadList();
+  const threadHandles = threads.map((t) => t.handle);
+  const otherFriends = state.friends.filter((id) => !threadHandles.includes(id));
+  return `<section class="screen">
+    <div class="topbar centered"><h1 class="title">대화</h1></div>
+    <div class="screen-scroll">
+      <section class="section">
+        ${threads.length ? `<div class="row-list">${threads.map((t) => {
+          const person = personById(t.handle);
+          if (!person) return "";
+          return `<button class="person-row" style="cursor:pointer;text-align:left" data-action="open-chat" data-user="${t.handle}">
+            ${avatar(person)}
+            <div class="person-main">
+              <div class="person-name">${escapeHtml(person.name)}</div>
+              <div class="person-id" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.last ? escapeHtml(`${t.last.from === "me" ? "나: " : ""}${t.last.body}`) : ""}</div>
+            </div>
+            ${t.unread ? `<span class="unread-badge">${t.unread}</span>` : `<span class="person-id">${timeAgo(t.last?.at)}</span>`}
+          </button>`;
+        }).join("")}</div>` : `<div class="empty">아직 대화가 없어요<br>친구 프로필에서 메시지를 시작해보세요</div>`}
+      </section>
+      ${otherFriends.length ? `<section class="section">
+        <h2 class="section-title">친구에게 메시지</h2>
+        <div class="row-list">${otherFriends.map((id) => {
+          const person = personById(id);
+          if (!person) return "";
+          return `<button class="person-row" style="cursor:pointer;text-align:left" data-action="open-chat" data-user="${id}">
+            ${avatar(person)}
+            <div class="person-main">
+              <div class="person-name">${escapeHtml(person.name)}</div>
+              <div class="person-id">@${escapeHtml(person.id)}</div>
+            </div>
+            ${icon("message", 16)}
+          </button>`;
+        }).join("")}</div>
+      </section>` : ""}
+    </div>
+  </section>`;
+}
+
+function chatRoomView() {
+  const other = personById(state.overlays.chatWith);
+  if (!other) return "";
+  const msgs = state.messages
+    .filter((m) => m.from === state.overlays.chatWith || m.to === state.overlays.chatWith)
+    .sort((a, b) => a.at - b.at);
+  return `<section class="overlay">
+    <div class="topbar" style="padding-bottom:10px;border-bottom:1px solid rgba(74,53,64,.08)">
+      <button class="ghost-icon" data-action="close-chat">←</button>
+      <div style="display:flex;align-items:center;gap:9px;min-width:0">
+        ${avatar(other)}
+        <div style="min-width:0">
+          <div class="person-name">${escapeHtml(other.name)}</div>
+          <div class="person-id">@${escapeHtml(other.id)}</div>
+        </div>
+      </div>
+      <div style="width:36px"></div>
+    </div>
+    <div class="chat-scroll" data-chat-scroll>
+      ${msgs.length ? msgs.map((m) => `
+        <div class="dm-row ${m.from === "me" ? "mine" : ""}">
+          ${m.from === "me" ? "" : avatar(other)}
+          <div class="dm-bubble">${escapeHtml(m.body)}</div>
+        </div>`).join("") : `<div class="empty">첫 메시지를 보내보세요</div>`}
+    </div>
+    <form class="chat-input-row" data-action="send-dm">
+      <input id="dm-input" class="input pill" maxlength="500" placeholder="메시지 보내기" autocomplete="off">
+      <button class="icon-btn" style="width:44px;height:44px;flex:none" type="submit" aria-label="전송">${icon("send", 18)}</button>
+    </form>
   </section>`;
 }
 
@@ -1169,7 +1571,19 @@ function toastView() {
   return state.toast ? `<div class="toast">${escapeHtml(state.toast)}</div>` : "";
 }
 
+// 종 아이콘 흔들림 — 새 알림이 생겼을 때 한 번만 (베타 피드백 8)
+let lastUnseenNotif = 0;
+
 function afterRender() {
+  const bell = app.querySelector(".icon-btn.bell");
+  if (bell) {
+    const unseen = Number(bell.dataset.unseen || 0);
+    if (unseen > lastUnseenNotif) {
+      bell.classList.add("ring");
+      setTimeout(() => bell.classList.remove("ring"), 1500);
+    }
+    lastUnseenNotif = unseen;
+  }
   const carousel = document.querySelector("[data-carousel]");
   const indicator = document.querySelector("[data-indicator]");
   if (carousel && indicator) {
@@ -1208,7 +1622,7 @@ app.addEventListener("click", (event) => {
   if (!target || !app.contains(target)) return;
   if (target.tagName === "FORM") return;
   const action = target.dataset.action;
-  if (action === "my-topic" && longPressFired) {
+  if (action === "open-viewer" && longPressFired) {
     longPressFired = false;
     return;
   }
@@ -1219,11 +1633,11 @@ app.addEventListener("input", (event) => {
   const field = event.target.dataset.field;
   if (!field) return;
   const el = event.target;
-  if (el.type === "checkbox" || el.type === "range") {
-    setField(field, el.type === "checkbox" ? el.checked : el.value);
+  if (el.type === "checkbox") {
+    setField(field, el.checked);
     return render();
   }
-  // 텍스트 입력은 재렌더 금지 — 입력창이 교체되면 모바일 키보드가 리셋되고 한글 조합이 끊김
+  // 텍스트·슬라이더 입력은 재렌더 금지 — 입력창 교체 시 모바일 키보드 리셋/한글 조합 끊김, 슬라이더 드래그 끊김
   setField(field, el.value);
   patchAfterInput(field, el);
 });
@@ -1262,6 +1676,8 @@ function setField(field, value) {
   if (field === "login.password") s.login.password = String(value);
   if (field === "search") s.search = String(value);
   if (field === "upload.caption") s.upload.caption = String(value).slice(0, 60);
+  if (field === "upload.zoom") s.upload.zoom = Math.min(3, Math.max(1, Number(value) || 1));
+  if (field === "postEdit.caption" && s.postEdit) s.postEdit.caption = String(value).slice(0, 60);
   if (field === "edit.name") s.edit.name = String(value).slice(0, 12);
   if (field === "edit.id") s.edit.id = normalizeId(value);
   if (field === "edit.bio") s.edit.bio = String(value).slice(0, 80);
@@ -1300,6 +1716,8 @@ function handleAction(action, el) {
       return uploadBack();
     case "pick-photo":
       return photoInput.click();
+    case "pick-album":
+      return albumInput.click();
     case "pick-gallery":
       return pickGallery(el.dataset.gallery);
     case "upload-next":
@@ -1308,17 +1726,80 @@ function handleAction(action, el) {
       return setUpload(el.dataset.key, el.dataset.value);
     case "toggle-upload":
       return update((s) => { s.upload[el.dataset.key] = !s.upload[el.dataset.key]; });
+    case "rotate-upload":
+      state.upload.rot = ((state.upload.rot || 0) + 90) % 360;
+      return patchUploadTransform();
+    case "reset-transform":
+      Object.assign(state.upload, { zoom: 1, rot: 0, x: 0, y: 0 });
+      return patchUploadTransform();
     case "publish":
       return publishPost();
-    case "reveal":
+    case "reveal": {
+      // 재렌더 대신 해당 프레임의 클래스만 바꿔 blur가 서서히 풀리게 한다 (베타 피드백 5)
+      if (state.revealed[postId]) return;
       api.addReveal(state.me, postId).catch(() => {});
-      return update((s) => { s.revealed[postId] = true; });
+      state.revealed[postId] = true;
+      app.querySelectorAll(`.media-frame[data-post="${CSS.escape(postId)}"]`).forEach((frame) => {
+        frame.classList.remove("blurred");
+        frame.classList.add("revealed");
+      });
+      return;
+    }
     case "open-comments":
       return update((s) => { s.overlays.commentsFor = postId; });
     case "close-comments":
       return update((s) => { s.overlays.commentsFor = ""; });
     case "send-comment":
       return sendComment();
+    case "delete-comment":
+      return deleteComment(el.dataset.comment, postId);
+    case "post-menu": {
+      const target = state.posts.find((p) => p.id === postId);
+      return update((s) => { s.postEdit = { id: postId, caption: target?.caption || "" }; });
+    }
+    case "close-post-menu":
+      return update((s) => { s.postEdit = null; });
+    case "save-post-edit":
+      return savePostEdit();
+    case "delete-post":
+      return update((s) => { s.overlays.purgeFor = postId; });
+    case "open-viewer":
+      return update((s) => { s.overlays.viewerPost = postId; });
+    case "archive-post":
+      return setPostArchived(postId, true);
+    case "restore-post":
+      return setPostArchived(postId, false);
+    case "open-archive":
+      return update((s) => { s.overlays.archive = true; s.overlays.settings = false; });
+    case "close-archive":
+      return update((s) => { s.overlays.archive = false; s.overlays.settings = true; });
+    case "ask-purge":
+      return update((s) => { s.overlays.purgeFor = postId; });
+    case "cancel-purge":
+      return update((s) => { s.overlays.purgeFor = ""; });
+    case "confirm-purge":
+      return purgePost();
+    case "open-notif":
+      state.notifSeen = Date.now();
+      localStorage.setItem(NOTIF_SEEN_KEY, String(state.notifSeen));
+      return update((s) => { s.overlays.notif = true; });
+    case "close-notif":
+      return update((s) => { s.overlays.notif = false; });
+    case "notif-friends":
+      return update((s) => { s.overlays.notif = false; s.tab = "friends"; });
+    case "notif-post":
+      return update((s) => {
+        s.overlays.notif = false;
+        s.tab = "home";
+        // 댓글 알림만 댓글창까지 열어줌 — 게시 알림은 오늘 탭으로 이동
+        s.overlays.commentsFor = el.dataset.kind === "comment" ? postId || "" : "";
+      });
+    case "open-chat":
+      return openChat(id);
+    case "close-chat":
+      return update((s) => { s.overlays.chatWith = ""; });
+    case "send-dm":
+      return sendDm();
     case "open-person":
       return openPerson(id);
     case "close-private":
@@ -1379,8 +1860,6 @@ function handleAction(action, el) {
       return confirmLeave();
     case "finish-leave":
       return state = defaultState(), state.auth = "welcome", render();
-    case "my-topic":
-      return toast(`${topicDate} 허브 · ${topic}`);
     case "close-viewer":
       return update((s) => { s.overlays.viewerPost = ""; });
     default:
@@ -1480,6 +1959,8 @@ async function friendAction(kind, handle) {
       block: "차단했어요"
     };
     toast(messages[kind]);
+    // 수락하면 새 친구의 오늘 허브가 새로고침 없이 바로 보이도록 전체 재적재 (베타 피드백 8)
+    if (kind === "accept") scheduleRefresh();
   } catch (error) {
     toast(error.message || "요청에 실패했어요");
   }
@@ -1518,6 +1999,40 @@ function setUpload(key, value) {
   });
 }
 
+function loadImageEl(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = reject;
+    image.src = src;
+  });
+}
+
+// 편집 화면에서 조정한 확대·회전·이동을 캔버스로 구워 최종 이미지를 만든다 (베타 피드백 1)
+// 프리뷰의 CSS transform(translate → rotate → scale)과 동일한 순서로 그린다.
+async function bakeUploadImage() {
+  const up = state.upload;
+  const img = await loadImageEl(up.selectedImage);
+  const [rw, rh] = up.ratio === "1 / 1" ? [1, 1] : up.ratio === "16 / 9" ? [16, 9] : [4, 5];
+  const outW = 1080;
+  const outH = Math.round((outW * rh) / rw);
+  const frame = app.querySelector("[data-upload-frame]");
+  const previewW = frame?.getBoundingClientRect().width || parseInt(ratioWidth(up.ratio), 10);
+  const k = outW / previewW;
+  const canvas = document.createElement("canvas");
+  canvas.width = outW;
+  canvas.height = outH;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, outW, outH);
+  ctx.translate(outW / 2 + (up.x || 0) * k, outH / 2 + (up.y || 0) * k);
+  ctx.rotate(((up.rot || 0) * Math.PI) / 180);
+  ctx.scale(up.zoom || 1, up.zoom || 1);
+  const cover = Math.max(outW / img.width, outH / img.height);
+  ctx.drawImage(img, (-img.width * cover) / 2, (-img.height * cover) / 2, img.width * cover, img.height * cover);
+  return canvas.toDataURL("image/jpeg", 0.85);
+}
+
 async function publishPost() {
   const up = state.upload;
   if (!up.selectedId && !up.selectedImage) return toast("사진을 먼저 선택해 주세요");
@@ -1525,7 +2040,11 @@ async function publishPost() {
   try {
     let imageUrl;
     if (up.selectedImage) {
-      imageUrl = await api.uploadPhoto(state.me, up.selectedImage);
+      let source = up.selectedImage;
+      try {
+        source = await bakeUploadImage();
+      } catch {}
+      imageUrl = await api.uploadPhoto(state.me, source);
     } else {
       const gradIndex = gallery.findIndex((g) => g.id === up.selectedId);
       imageUrl = `grad:${Math.max(0, gradIndex)}`;
@@ -1572,13 +2091,128 @@ async function sendComment() {
   const postId = state.overlays.commentsFor;
   if (!text || !postId) return;
   try {
-    await api.addComment(state.me, postId, text);
+    const row = await api.addComment(state.me, postId, text);
     update((s) => {
       const post = s.posts.find((p) => p.id === postId);
-      if (post) post.comments.push({ by: "me", text });
+      if (post) post.comments.push({ id: row?.id, by: "me", text, at: Date.now() });
     });
   } catch (error) {
     toast(error.message || "댓글을 남기지 못했어요");
+  }
+}
+
+async function deleteComment(commentId, postId) {
+  if (!commentId) return;
+  try {
+    await api.deleteComment(commentId);
+    update((s) => {
+      const post = s.posts.find((p) => p.id === postId);
+      if (post) post.comments = post.comments.filter((c) => c.id !== commentId);
+    });
+    toast("댓글을 삭제했어요");
+  } catch (error) {
+    toast(error.message || "댓글을 삭제하지 못했어요");
+  }
+}
+
+// 룸에서 삭제 → 보관으로 이동 / 보관에서 복원 (베타 피드백 6)
+async function setPostArchived(postId, archived) {
+  try {
+    await api.updatePost(postId, { archived });
+    update((s) => {
+      const post = s.posts.find((p) => p.id === postId);
+      if (post) post.archived = archived;
+      s.overlays.viewerPost = "";
+    });
+    toast(archived ? "보관으로 옮겼어요 — 설정 > 보관에서 볼 수 있어요" : "룸으로 복원했어요");
+  } catch (error) {
+    toast(error.message || "처리하지 못했어요");
+  }
+}
+
+// 영구 삭제 — 오늘 게시물 삭제(피드백 11)와 보관함 삭제(피드백 6)가 공유
+async function purgePost() {
+  const postId = state.overlays.purgeFor;
+  const post = state.posts.find((p) => p.id === postId);
+  if (!post) return update((s) => { s.overlays.purgeFor = ""; });
+  update((s) => { s.busy = "삭제하는 중…"; });
+  try {
+    await api.deletePost(postId);
+    if (post.image) api.removePhotoByUrl(post.image).catch(() => {});
+    update((s) => {
+      s.busy = "";
+      s.posts = s.posts.filter((p) => p.id !== postId);
+      delete s.revealed[postId];
+      s.overlays.purgeFor = "";
+      s.postEdit = null;
+      s.overlays.viewerPost = "";
+      if (post.authorId === "me" && post.hubDate === HUB_DATE) {
+        s.myPosted = false;
+        s.visitors = 0;
+      }
+    });
+    toast("사진을 삭제했어요");
+  } catch (error) {
+    update((s) => { s.busy = ""; });
+    toast(error.message || "삭제하지 못했어요");
+  }
+}
+
+// 오늘 게시물의 한 줄 글 수정·추가·삭제 (베타 피드백 11)
+async function savePostEdit() {
+  const pe = state.postEdit;
+  if (!pe) return;
+  const caption = (pe.caption || "").trim().slice(0, 60);
+  try {
+    await api.updatePost(pe.id, { caption });
+    update((s) => {
+      const post = s.posts.find((p) => p.id === pe.id);
+      if (post) post.caption = caption;
+      s.postEdit = null;
+    });
+    toast("글을 저장했어요");
+  } catch (error) {
+    toast(error.message || "저장하지 못했어요");
+  }
+}
+
+// ---------------- 대화(DM) ----------------
+
+async function openChat(handle) {
+  const otherUid = uidOf(handle);
+  if (!otherUid) return;
+  update((s) => {
+    s.overlays.chatWith = handle;
+    s.overlays.friendUser = "";
+    s.overlays.publicUser = "";
+    s.overlays.privateUser = "";
+  });
+  // 읽음 처리 (서버 + 로컬)
+  api.markMessagesRead(state.me, otherUid).catch(() => {});
+  let changed = false;
+  state.messages.forEach((m) => {
+    if (m.from === handle && m.to === "me" && !m.read) {
+      m.read = true;
+      changed = true;
+    }
+  });
+  if (changed) render();
+}
+
+async function sendDm() {
+  const input = document.querySelector("#dm-input");
+  const body = input?.value.trim().slice(0, 500);
+  const handle = state.overlays.chatWith;
+  const otherUid = uidOf(handle);
+  if (!body || !otherUid) return;
+  try {
+    const row = await api.sendMessage(state.me, otherUid, body);
+    update((s) => {
+      s.messages.push({ id: row?.id, from: "me", to: handle, body, at: Date.now(), read: false });
+    });
+    document.querySelector("#dm-input")?.focus({ preventScroll: true });
+  } catch (error) {
+    toast(error.message || "메시지를 보내지 못했어요 — 친구끼리만 대화할 수 있어요");
   }
 }
 
@@ -1649,8 +2283,9 @@ async function fileToDataUrl(file, maxSide = 1400) {
   return canvas.toDataURL("image/jpeg", .82);
 }
 
-photoInput.addEventListener("change", async () => {
-  const file = photoInput.files?.[0];
+// 카메라·앨범 공용 — 선택한 사진을 업로드 편집 단계로 (베타 피드백 9)
+async function handlePickedPhoto(input, label) {
+  const file = input.files?.[0];
   if (!file) return;
   try {
     const dataUrl = await fileToDataUrl(file);
@@ -1660,13 +2295,69 @@ photoInput.addEventListener("change", async () => {
       s.upload.selectedId = "";
       s.upload.selectedImage = dataUrl;
       s.upload.selectedGrad = gradients[0];
-      s.upload.selectedLabel = "앨범";
+      s.upload.selectedLabel = label;
+      s.upload.zoom = 1;
+      s.upload.rot = 0;
+      s.upload.x = 0;
+      s.upload.y = 0;
     });
   } catch {
     toast("사진을 불러오지 못했어요");
   } finally {
-    photoInput.value = "";
+    input.value = "";
   }
+}
+
+photoInput.addEventListener("change", () => handlePickedPhoto(photoInput, "카메라"));
+albumInput.addEventListener("change", () => handlePickedPhoto(albumInput, "앨범"));
+
+// ---------------- 업로드 프리뷰 드래그·핀치 (베타 피드백 1) ----------------
+// 한 손가락: 위치 이동, 두 손가락: 확대/축소. 전체 재렌더 없이 transform만 패치.
+const dragCtx = { pointers: new Map(), base: null };
+
+function dragBaseline() {
+  const pts = [...dragCtx.pointers.values()];
+  dragCtx.base = {
+    x: state.upload.x || 0,
+    y: state.upload.y || 0,
+    zoom: state.upload.zoom || 1,
+    pts: pts.map((p) => ({ ...p }))
+  };
+}
+
+app.addEventListener("pointerdown", (event) => {
+  const frame = event.target.closest("[data-drag-canvas]");
+  if (!frame || !state.upload.open || !state.upload.selectedImage) return;
+  event.preventDefault();
+  dragCtx.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  frame.setPointerCapture?.(event.pointerId);
+  dragBaseline();
+});
+
+app.addEventListener("pointermove", (event) => {
+  if (!dragCtx.pointers.has(event.pointerId) || !dragCtx.base) return;
+  dragCtx.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  const pts = [...dragCtx.pointers.values()];
+  const base = dragCtx.base;
+  if (pts.length >= 2 && base.pts.length >= 2) {
+    const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+    const d0 = dist(base.pts[0], base.pts[1]) || 1;
+    const d1 = dist(pts[0], pts[1]);
+    state.upload.zoom = Math.min(3, Math.max(1, base.zoom * (d1 / d0)));
+  } else {
+    state.upload.x = base.x + (pts[0].x - base.pts[0].x);
+    state.upload.y = base.y + (pts[0].y - base.pts[0].y);
+  }
+  patchUploadTransform();
+});
+
+["pointerup", "pointercancel"].forEach((type) => {
+  app.addEventListener(type, (event) => {
+    if (!dragCtx.pointers.has(event.pointerId)) return;
+    dragCtx.pointers.delete(event.pointerId);
+    if (dragCtx.pointers.size) dragBaseline();
+    else dragCtx.base = null;
+  });
 });
 
 avatarInput.addEventListener("change", async () => {

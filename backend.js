@@ -94,6 +94,13 @@ export async function fetchTodayHub() {
   return data?.topic || null;
 }
 
+// 지난 허브 주제 전체 — 룸 사진 확대 뷰에서 날짜별 주제를 보여주기 위해 사용
+export async function fetchHubs() {
+  const { data, error } = await supabase.from("hubs").select("hub_date, topic");
+  if (error) return {};
+  return Object.fromEntries((data || []).map((row) => [row.hub_date, row.topic]));
+}
+
 // ---------------- 데이터 로드 ----------------
 
 export async function fetchProfiles() {
@@ -172,8 +179,33 @@ export async function createPost(uid, payload) {
   return data;
 }
 
+// 캡션 수정·보관 이동/복원 (migration-05의 posts_update_own 정책 필요)
+export async function updatePost(postId, patch) {
+  const { error } = await supabase.from("posts").update(patch).eq("id", postId);
+  if (error) fail(error);
+}
+
+export async function deletePost(postId) {
+  const { error } = await supabase.from("posts").delete().eq("id", postId);
+  if (error) fail(error);
+}
+
+// 게시물 영구 삭제 시 스토리지 원본도 정리 (실패해도 무시 — DB 행 삭제가 우선)
+export async function removePhotoByUrl(url) {
+  const marker = "/photos/";
+  const at = String(url).indexOf(marker);
+  if (at < 0) return;
+  const path = decodeURIComponent(String(url).slice(at + marker.length));
+  await supabase.storage.from("photos").remove([path]).catch(() => {});
+}
+
 export async function addReveal(uid, postId) {
   await supabase.from("reveals").upsert({ user_id: uid, post_id: postId }, { onConflict: "user_id,post_id", ignoreDuplicates: true });
+}
+
+export async function deleteComment(commentId) {
+  const { error } = await supabase.from("comments").delete().eq("id", commentId);
+  if (error) fail(error);
 }
 
 export async function addComment(uid, postId, body) {
@@ -225,6 +257,57 @@ export async function blockFriend(uid, otherUid) {
     .eq("user_a", pair.user_a)
     .eq("user_b", pair.user_b);
   if (error) fail(error);
+}
+
+// 친구의 친구 추천 (migration-05 RPC). 마이그레이션 전이면 null 반환 → 클라이언트가 기존 추천으로 폴백
+export async function fetchSuggestions() {
+  const { data, error } = await supabase.rpc("friend_suggestions");
+  if (error) return null;
+  return data || [];
+}
+
+// ---------------- 메시지 (DM, migration-05) ----------------
+
+// 내가 참여한 모든 메시지 — RLS가 당사자 것만 반환. 테이블이 없으면(마이그레이션 전) 빈 배열
+export async function fetchMessages() {
+  const { data, error } = await supabase
+    .from("messages")
+    .select("*")
+    .order("created_at", { ascending: true });
+  if (error) return [];
+  return data;
+}
+
+export async function sendMessage(uid, otherUid, body) {
+  const { data, error } = await supabase
+    .from("messages")
+    .insert({ sender_id: uid, recipient_id: otherUid, body })
+    .select()
+    .single();
+  if (error) fail(error);
+  return data;
+}
+
+export async function markMessagesRead(uid, otherUid) {
+  await supabase
+    .from("messages")
+    .update({ read_at: new Date().toISOString() })
+    .eq("recipient_id", uid)
+    .eq("sender_id", otherUid)
+    .is("read_at", null);
+}
+
+// ---------------- Realtime ----------------
+
+// 게시물·친구·댓글·메시지 변경을 실시간 수신 (migration-05에서 publication에 추가)
+// RLS가 적용되므로 내가 볼 수 있는 행의 변경만 온다. 실패해도 앱은 폴백(수동 새로고침)으로 동작.
+export function subscribeRealtime(onChange) {
+  const channel = supabase.channel("blur-live");
+  ["posts", "friendships", "comments", "messages"].forEach((table) => {
+    channel.on("postgres_changes", { event: "*", schema: "public", table }, (payload) => onChange(table, payload));
+  });
+  channel.subscribe();
+  return channel;
 }
 
 // ---------------- 프로필 ----------------
