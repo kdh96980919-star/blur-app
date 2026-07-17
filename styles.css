@@ -1,6 +1,6 @@
 :root {
   color-scheme: light;
-  --bg: #f8f5f7;
+  --bg: #f5f4f7;
   --ink: #3c2c36;
   --brand: #4a3540;
   --muted: #8a6f7d;
@@ -84,7 +84,7 @@ textarea {
   place-items: center;
   overflow: hidden;
   background:
-    radial-gradient(circle at 50% 0%, rgba(255, 255, 255, .7), rgba(248, 245, 247, .1) 42%),
+    radial-gradient(circle at 50% 0%, rgba(255, 255, 255, .7), rgba(245, 244, 247, .1) 42%),
     var(--bg);
 }
 
