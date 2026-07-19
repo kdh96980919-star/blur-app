@@ -8,12 +8,12 @@
   --muted: #9b95a6;
   --faint: #c9c4d2;
   /* 투 포인트 컬러: 스카이(강조·활성) + 민트(스위치 on) */
-  --yellow: #7bcfff;
+  --yellow: #a6ddff;
   --yellow-deep: #4db9f2;
   --mint: #7bffba;
   --sage: #d5e3e0;
   --sage-soft: #e8f0ee;
-  --sky: #7bcfff;
+  --sky: #a6ddff;
   --pink: #f9dcea;
   --danger: #e4573d;
   --success: #5f8e7d;
@@ -1272,7 +1272,7 @@ button.room-bio-empty {
 .tab.active {
   color: var(--ink);
   background: var(--yellow);
-  box-shadow: 0 4px 12px rgba(96, 176, 224, .45);
+  box-shadow: 0 4px 12px rgba(96, 176, 224, .28);
 }
 
 .overlay {
@@ -1573,7 +1573,7 @@ button.room-bio-empty {
   font-weight: 500;
   width: fit-content;
   color: var(--ink);
-  box-shadow: 0 4px 12px rgba(96, 176, 224, .35);
+  box-shadow: 0 4px 12px rgba(96, 176, 224, .24);
 }
 
 .upload-grid {
