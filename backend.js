@@ -10,8 +10,10 @@ const AUTH_DOMAIN = "blur-app.test";
 const emailFor = (handle) => `${handle}@${AUTH_DOMAIN}`;
 
 // 허브 날짜는 서버(current_date, UTC) 기준 — 한국시간 오전 9시에 새 허브가 열림
+// 허브 날짜 — 매일 한국시간 오전 6시에 새 주제로 갱신.
+// KST(UTC+9)의 06:00 롤오버 = UTC 21:00이므로, (지금 + 3시간)의 UTC 날짜가 그날의 허브 날짜가 된다.
 export function hubDateToday() {
-  return new Date().toISOString().slice(0, 10);
+  return new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 10);
 }
 
 // 주제 아이디어 풀 — topics-weekly.sql 채울 때 참고용 (클라이언트가 자동 게시하지 않음)
@@ -73,10 +75,85 @@ export async function signOut() {
   await supabase.auth.signOut();
 }
 
-export async function deleteAccount() {
+// 비밀번호 변경 — 이메일이 합성 주소라 재설정 메일은 불가, 로그인 상태에서만 바꾼다
+export async function updatePassword(password) {
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) fail(error);
+}
+
+// 현재 비밀번호 확인 — 변경 전 본인 확인용 재로그인
+export async function verifyPassword(handle, password) {
+  const { error } = await supabase.auth.signInWithPassword({ email: emailFor(handle), password });
+  return !error;
+}
+
+// 신고 접수 — 관리자(대시보드)가 검토 (migration-06)
+export async function reportContent(uid, targetType, targetId, reason) {
+  const { error } = await supabase.from("reports").insert({
+    reporter_id: uid,
+    target_type: targetType,
+    target_id: String(targetId),
+    reason
+  });
+  // 같은 대상 중복 신고(unique 제약)는 이미 접수된 것으로 본다
+  if (error && error.code !== "23505") fail(error);
+}
+
+// 탈퇴 시 내 Storage 폴더(사진·동영상·아바타) 비우기 — 계정 삭제 뒤에도
+// JWT가 유효한 동안 photos_delete_own 정책으로 지울 수 있다. 실패해도 탈퇴는 진행.
+export async function clearMyStorage(uid) {
+  const bucket = supabase.storage.from("photos");
+  for (let round = 0; round < 20; round++) {
+    const { data, error } = await bucket.list(uid, { limit: 100 });
+    if (error || !data?.length) break;
+    const names = data.filter((f) => f.id).map((f) => `${uid}/${f.name}`);
+    if (!names.length) break;
+    await bucket.remove(names);
+    if (data.length < 100) break;
+  }
+}
+
+export async function deleteAccount(uid) {
+  // 계정 삭제 뒤에는 같은 JWT라도 Storage API가 거부한다(E2E 실증) — 폴더를 먼저 비운다
+  if (uid) await clearMyStorage(uid).catch(() => {});
   const { error } = await supabase.rpc("delete_own_account");
   if (error) fail(error);
   await supabase.auth.signOut();
+}
+
+// ---------------- 복구 코드 (migration-08) ----------------
+// 합성 이메일이라 재설정 메일이 불가 — 1회용 복구 코드로 비밀번호를 재설정한다.
+
+// 헷갈리는 문자(I·L·O·0·1) 제외 31자 알파벳, 12자 ≈ 59비트
+export function generateRecoveryCode() {
+  const alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  const bytes = crypto.getRandomValues(new Uint8Array(12));
+  const chars = [...bytes].map((b) => alphabet[b % alphabet.length]);
+  return `${chars.slice(0, 4).join("")}-${chars.slice(4, 8).join("")}-${chars.slice(8).join("")}`;
+}
+
+const normalizeRecoveryCode = (code) => String(code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+export async function setRecoveryCode(code) {
+  const { error } = await supabase.rpc("set_recovery_code", { code: normalizeRecoveryCode(code) });
+  if (error) fail(error);
+}
+
+// 서버는 상태 문자열을 반환한다(예외를 던지면 롤백으로 시도 기록이 사라져 레이트 리밋이 무력화됨)
+const RESET_MESSAGES = {
+  weak_password: "새 비밀번호는 6자 이상이어야 해요",
+  rate_limited: "시도가 너무 많았어요. 1시간 뒤 다시 시도해 주세요",
+  invalid: "아이디 또는 복구 코드가 맞지 않아요"
+};
+
+export async function resetPasswordWithCode(handle, code, newPassword) {
+  const { data, error } = await supabase.rpc("reset_password_with_code", {
+    candidate: handle,
+    code: normalizeRecoveryCode(code),
+    new_password: newPassword
+  });
+  if (error) fail(error);
+  if (data !== "ok") throw new Error(RESET_MESSAGES[data] || "재설정하지 못했어요");
 }
 
 export async function isHandleAvailable(handle) {
@@ -145,6 +222,15 @@ export async function countPostReveals(postId, exceptUid) {
 async function dataUrlToBlob(dataUrl) {
   const res = await fetch(dataUrl);
   return res.blob();
+}
+
+// 동영상 등 블롭 업로드 — 사진과 같은 photos 버킷, 확장자로 종류를 구분한다
+export async function uploadMedia(uid, blob, ext) {
+  const path = `${uid}/post-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const { error } = await supabase.storage.from("photos").upload(path, blob, { contentType: blob.type || "video/webm" });
+  if (error) fail(error);
+  const { data } = supabase.storage.from("photos").getPublicUrl(path);
+  return data.publicUrl;
 }
 
 export async function uploadPhoto(uid, dataUrl, prefix = "post") {
@@ -286,6 +372,12 @@ export async function sendMessage(uid, otherUid, body) {
     .single();
   if (error) fail(error);
   return data;
+}
+
+// 내가 보낸 메시지 삭제 — 상대 화면에서도 사라진다 (migration-08의 delete 정책 필요)
+export async function deleteMessage(messageId) {
+  const { error } = await supabase.from("messages").delete().eq("id", messageId);
+  if (error) fail(error);
 }
 
 export async function markMessagesRead(uid, otherUid) {
