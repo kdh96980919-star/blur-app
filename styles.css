@@ -1185,18 +1185,17 @@ button:focus {
   text-align: center;
 }
 
-button.room-bio.empty {
-  color: var(--muted);
-  background: var(--glass);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  box-shadow: var(--lift-sm), var(--hi);
-  border-radius: 999px;
-  padding: 8px 16px;
+/* bio가 비었을 때 — 배경·그림자 없는 얇은 안내 텍스트 (.empty 상태 클래스와 충돌 금지) */
+button.room-bio-empty {
+  color: var(--faint);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 300;
+  padding: 4px 8px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
 }
 
 .room-actions {

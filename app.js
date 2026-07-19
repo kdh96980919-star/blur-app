@@ -1076,7 +1076,7 @@ function myView() {
       <div class="room-id">@${escapeHtml(state.profile.id)}</div>
       ${bio
         ? `<div class="room-bio">${escapeHtml(bio)}</div>`
-        : `<button class="room-bio empty" data-action="open-edit">나를 한 줄로 소개해보세요 ${icon("pencil", 11)}</button>`}
+        : `<button class="room-bio room-bio-empty" data-action="open-edit">나를 한 줄로 소개해보세요 ${icon("pencil", 11)}</button>`}
     </div>
     <div class="screen-scroll" style="margin-top:22px">
       ${archive.length
