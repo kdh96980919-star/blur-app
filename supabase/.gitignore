@@ -1,0 +1,9 @@
+# Supabase CLI 로컬 아티팩트 (배포 시 자동 생성, 추적 불필요)
+.branches
+.temp
+
+# 로컬 환경 변수 / 키
+.env
+.env.keys
+.env.local
+.env.*.local

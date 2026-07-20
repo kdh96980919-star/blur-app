@@ -608,11 +608,6 @@ button:focus {
   color: #191919;
 }
 
-.naver {
-  background: #03c75a;
-  color: #fff;
-}
-
 .google {
   background: #fff;
   color: #3c4043;
@@ -933,6 +928,39 @@ button:focus {
   letter-spacing: .02em;
 }
 
+/* 연락처로 친구 찾기 카드 (migration-10) */
+.contact-find {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px;
+  background: rgba(255, 255, 255, .5);
+}
+
+.contact-find-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -.01em;
+}
+
+.contact-find-sub {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.contact-find-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.contact-find-actions .btn {
+  flex: 1;
+  width: auto;
+}
+
 .row-list {
   display: grid;
   gap: 0;
@@ -1187,10 +1215,10 @@ button:focus {
 
 /* bio가 비었을 때 — 배경·그림자 없는 얇은 안내 텍스트 (.empty 상태 클래스와 충돌 금지) */
 button.room-bio-empty {
-  color: var(--faint);
+  color: #8b8598;
   background: transparent;
-  font-size: 12px;
-  font-weight: 300;
+  font-size: 13px;
+  font-weight: 500;
   padding: 4px 8px;
   cursor: pointer;
   display: inline-flex;
@@ -1735,16 +1763,12 @@ input.bg-swatch {
   justify-items: center;
 }
 
+/* 흰 원 배경 없이 아이콘만 — 오늘(해)·구름 등 페이지 상징을 그대로 노출 */
 .onboard-icon {
-  width: 74px;
-  height: 74px;
-  border-radius: 50%;
   display: grid;
   place-items: center;
-  background: rgba(255, 255, 255, .78);
-  box-shadow: var(--lift), var(--hi);
   color: var(--ink);
-  margin-bottom: 6px;
+  margin-bottom: 10px;
 }
 
 .onboard-title {

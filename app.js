@@ -1,4 +1,5 @@
 import * as api from "./backend.js";
+import { VAPID_PUBLIC_KEY } from "./config.js";
 
 const LEGACY_STORAGE_KEY = "blur-service-state-v2";
 const NOTIF_SEEN_KEY = "blur-notif-seen";
@@ -99,23 +100,25 @@ function defaultState() {
     acceptedAt: [],
     recs: [],
     fofMutual: {},
+    contactHit: {},
+    myPhoneSet: false,
+    phoneSheet: null,
+    push: false,
     sentRequests: {},
     posts: [],
     revealed: {},
     hubTopics: {},
     messages: [],
     notifSeen: Number(localStorage.getItem(NOTIF_SEEN_KEY) || 0),
-    signup: { name: "", id: "", pw: "", avail: null },
+    signup: { name: "", id: "", avail: null },
     onboard: null,
-    login: { id: "", password: "", error: "" },
-    recover: { id: "", code: "", pw: "", pw2: "", error: "" },
+    provider: "",
     search: "",
     chatSearch: "",
     bgC1: BG_DEFAULT.c1,
     bgC2: BG_DEFAULT.c2,
     upload: blankUpload(),
     edit: null,
-    pwEdit: null,
     postEdit: null,
     overlays: {
       commentsFor: "",
@@ -132,8 +135,7 @@ function defaultState() {
       chatWith: "",
       logout: false,
       viewerPost: "",
-      dmDelete: "",
-      recoveryCode: ""
+      dmDelete: ""
     },
     leave: { open: false, reason: "", agree: false, confirm: false, done: false },
     toast: "",
@@ -288,15 +290,17 @@ function applySuggestions(s, suggestions) {
 }
 
 async function loadAll(uid) {
-  const [profiles, posts, friendRows, revealIds, hubTopics, suggestions, messageRows] = await Promise.all([
+  const [profiles, posts, friendRows, revealIds, hubTopics, suggestions, messageRows, myPhoneHash] = await Promise.all([
     api.fetchProfiles(),
     api.fetchPosts(),
     api.fetchFriendships(),
     api.fetchMyReveals(uid),
     api.fetchHubs(),
     api.fetchSuggestions().catch(() => null),
-    api.fetchMessages().catch(() => [])
+    api.fetchMessages().catch(() => []),
+    api.fetchMyContactHash(uid).catch(() => null)
   ]);
+  state.myPhoneSet = Boolean(myPhoneHash);
   state.me = uid;
   state.hubTopics = hubTopics || {};
   topic = state.hubTopics[HUB_DATE] || "";
@@ -307,6 +311,8 @@ async function loadAll(uid) {
     state.profile = { name: mine.name, id: mine.id, color: mine.color, emoji: mine.emoji, photo: mine.photo, bio: mine.bio };
     state.myPublic = mine.public;
     state.notif = rawMine.notif !== false;
+    // OAuth 첫 로그인이면 아직 이름·아이디를 정하지 않은 상태 (migration-09의 setup_done)
+    state.setupNeeded = rawMine.setup_done === false;
   }
   state.posts = posts.map(mapPost);
   applySocial(state, friendRows);
@@ -335,25 +341,121 @@ async function refreshData() {
 }
 
 async function boot() {
+  // OAuth 리다이렉트 복귀 처리 — 에러 파라미터는 안내하고, 인증 잔여물은 주소창에서 지운다
+  const search = new URLSearchParams(location.search);
+  const hash = new URLSearchParams(location.hash.replace(/^#/, ""));
+  const oauthError = search.get("error_description") || hash.get("error_description");
   try {
     const session = await api.getSession();
+    if (/[?#&](code|access_token|error)=/.test(location.search + location.hash) || search.has("code")) {
+      history.replaceState(null, "", location.pathname);
+    }
     if (!session) {
       state = defaultState();
       state.auth = "welcome";
-      return render();
+      render();
+      if (oauthError) toast("로그인이 취소되었거나 실패했어요");
+      return;
     }
     await loadAll(session.user.id);
+    state.provider = session.user.app_metadata?.provider || "";
+    if (state.setupNeeded) {
+      // OAuth 첫 로그인 — 이름·아이디를 정하는 화면으로 (이름은 소셜 프로필에서 미리 채움)
+      state.auth = "setup";
+      const prefill = state.profile.name === "이름없음" ? "" : state.profile.name;
+      state.signup = { name: prefill.slice(0, 12), id: "", avail: null };
+      return render();
+    }
     state.auth = "app";
     render();
-    api.subscribeRealtime(() => scheduleRefresh());
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") scheduleRefresh();
-    });
+    startLive();
   } catch (error) {
     state = defaultState();
     state.auth = "welcome";
     render();
     toast(error.message || "연결에 실패했어요");
+  }
+}
+
+// 실시간 구독·탭 복귀 재적재 — 앱 화면에 들어갈 때 한 번만 등록
+let liveStarted = false;
+function startLive() {
+  if (liveStarted) return;
+  liveStarted = true;
+  api.subscribeRealtime(() => scheduleRefresh());
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") scheduleRefresh();
+  });
+  syncPushOnLoad();
+}
+
+// ---------------- 웹 푸시 (migration-11 + notify Edge Function) ----------------
+function pushSupported() {
+  return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(base64);
+  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+}
+
+async function enablePush() {
+  if (!pushSupported()) { toast("이 기기는 잠금화면 알림을 지원하지 않아요"); return false; }
+  const perm = await Notification.requestPermission();
+  if (perm !== "granted") { toast("알림 권한이 꺼져 있어요 — 기기 설정에서 허용해주세요"); return false; }
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+      });
+    }
+    await api.savePushSubscription(state.me, sub);
+    return true;
+  } catch (e) {
+    toast("알림을 켜지 못했어요");
+    return false;
+  }
+}
+
+async function disablePush() {
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (sub) {
+      await api.deletePushSubscription(sub.endpoint);
+      await sub.unsubscribe();
+    }
+  } catch (e) { /* 무시 */ }
+}
+
+// 로그인 후 — 이미 권한이 허용돼 있으면 구독을 조용히 갱신(엔드포인트가 만료·회전될 수 있음)
+async function syncPushOnLoad() {
+  if (!pushSupported() || Notification.permission !== "granted") {
+    if (state.push) update((s) => { s.push = false; });
+    return;
+  }
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (sub) { await api.savePushSubscription(state.me, sub); }
+    update((s) => { s.push = Boolean(sub); });
+  } catch (e) { /* 무시 */ }
+}
+
+async function togglePush() {
+  if (state.push) {
+    await disablePush();
+    update((s) => { s.push = false; });
+    toast("잠금화면 알림을 껐어요");
+  } else {
+    const ok = await enablePush();
+    update((s) => { s.push = ok; });
+    if (ok) toast("잠금화면 알림을 켰어요");
   }
 }
 
@@ -451,10 +553,6 @@ function patchAfterInput(field, el) {
     const norm = normalizeId(state.signup.id);
     if (el.value !== norm) el.value = norm;
     scheduleHandleCheck("signup");
-  } else if (field === "signup.pw") {
-    const hint = signupPwHintState();
-    setHint("signup.pw", hint.text, hint.cls);
-    patchSignupSubmit();
   } else if (field === "edit.id") {
     const norm = normalizeId(state.edit.id);
     if (el.value !== norm) el.value = norm;
@@ -469,29 +567,6 @@ function patchAfterInput(field, el) {
     if (box) box.innerHTML = chatListHtml();
   } else if (field === "upload.zoom") {
     patchUploadTransform();
-  } else if (field.startsWith("pw.")) {
-    // 비밀번호 입력 중 버튼 활성화·불일치 힌트만 부분 패치
-    const pw = state.pwEdit;
-    const ok = pw && pw.cur.length >= 6 && pw.next.length >= 6 && pw.next === pw.next2;
-    const btn = app.querySelector("[data-pw-submit]");
-    if (btn) {
-      btn.classList.toggle("disabled", !ok);
-      btn.disabled = !ok;
-    }
-    const hint = app.querySelector('[data-hint="pw.match"]');
-    if (hint) hint.style.display = pw && pw.next && pw.next2 && pw.next !== pw.next2 ? "" : "none";
-  } else if (field.startsWith("recover.")) {
-    // 재설정 폼 입력 중 버튼 활성화·불일치 힌트만 부분 패치
-    if (field === "recover.code" && el.value !== state.recover.code) el.value = state.recover.code;
-    const rc = state.recover;
-    const btn = app.querySelector("[data-recover-submit]");
-    if (btn) {
-      const ok = recoverReady(rc);
-      btn.classList.toggle("disabled", !ok);
-      btn.disabled = !ok;
-    }
-    const hint = app.querySelector('[data-hint="recover.match"]');
-    if (hint) hint.style.display = rc.pw && rc.pw2 && rc.pw !== rc.pw2 ? "" : "none";
   } else if (field === "onboard.color" || field === "edit.color") {
     // 그라데이션 색을 직접 고를 때도 사진 프로필은 즉시 내려놓는다
     if (field === "edit.color" && state.edit?.photo) {
@@ -669,7 +744,7 @@ function overlaySignature() {
     o.commentsFor, o.friendUser, o.publicUser, o.privateUser, o.actionsFor,
     o.settings, o.archive, o.purgeFor, o.notif, o.chatWith, o.logout, o.viewerPost,
     Boolean(state.edit), Boolean(state.postEdit), state.leave.open, state.leave.confirm, state.leave.done,
-    Boolean(state.pwEdit), Boolean(o.reportFor), o.dmDelete, Boolean(o.recoveryCode),
+    Boolean(o.reportFor), o.dmDelete, Boolean(state.phoneSheet),
     state.onboard ? `ob${state.onboard.step}` : ""
   ].join("|");
 }
@@ -696,13 +771,9 @@ function render() {
     ? loadingView()
     : state.auth === "welcome"
       ? welcomeView()
-      : state.auth === "signup"
-        ? signupView()
-        : state.auth === "login"
-          ? loginView()
-          : state.auth === "recover"
-            ? recoverView()
-            : appView();
+      : state.auth === "setup"
+        ? setupView()
+        : appView();
   app.innerHTML = `<div class="phone${mainSame ? " no-anim-main" : ""}${ovSame ? " no-anim-ov" : ""}">${content}${busyView()}${toastView()}</div>`;
   if (mainSame) {
     [...app.querySelectorAll(".screen-scroll")].forEach((el, i) => {
@@ -745,10 +816,10 @@ function welcomeView() {
     ${state.entered
       ? `<div class="welcome-auth">
           <div class="auth-stack">
-            <button class="btn" data-action="go-signup">시작하기</button>
-            <button class="btn secondary" data-action="go-login">이미 계정이 있어요</button>
+            <button class="btn social kakao" data-action="social" data-provider="kakao"><span class="social-mark">K</span>카카오로 계속하기</button>
+            <button class="btn social google" data-action="social" data-provider="google"><span class="social-mark">G</span>Google로 계속하기</button>
           </div>
-          <div class="hint" style="margin-top:16px">가입하면 <a href="./legal/terms.html" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">이용약관</a>과 <a href="./legal/privacy.html" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">개인정보 처리방침</a>에 동의한 것으로 간주돼요.</div>
+          <div class="hint" style="margin-top:16px">처음이면 계정이 만들어지고, 이미 가입했다면 바로 로그인돼요.<br>계속하면 <a href="./legal/terms.html" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">이용약관</a>과 <a href="./legal/privacy.html" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">개인정보 처리방침</a>에 동의한 것으로 간주돼요.</div>
         </div>`
       : `<div class="welcome-tap">화면을 탭해 시작하기</div>`}
   </section>`;
@@ -766,15 +837,9 @@ function signupIdHintState() {
   return { text: "영문 소문자, 숫자, _ 조합 3-16자", cls: "" };
 }
 
-function signupPwHintState() {
-  return state.signup.pw && state.signup.pw.length < 6
-    ? { text: "비밀번호는 6자 이상이어야 해요", cls: "bad" }
-    : { text: "", cls: "" };
-}
-
 function signupEnabled() {
   const nameOk = state.signup.name.trim().length > 0 && state.signup.name.trim().length <= 12;
-  return nameOk && validId(normalizeId(state.signup.id)) && state.signup.avail === true && state.signup.pw.length >= 6;
+  return nameOk && validId(normalizeId(state.signup.id)) && state.signup.avail === true;
 }
 
 function editIdHintState() {
@@ -796,15 +861,15 @@ function colorPicker(scope, color, { preview = true } = {}) {
   </div>`;
 }
 
-function signupView() {
+// OAuth 첫 로그인 직후 — 친구들이 알아볼 이름과 고유 아이디를 정하는 화면
+function setupView() {
   const id = normalizeId(state.signup.id);
   const enabled = signupEnabled();
   const idHint = signupIdHintState();
-  const pwHint = signupPwHintState();
   return `<section class="screen">
     <div class="auth-card">
       <h1>blur 시작하기</h1>
-      <div class="subtitle">친구들이 알아볼 이름과 고유 아이디를 정해주세요.</div>
+      <div class="subtitle">${providerLabel(state.provider)} 계정으로 연결됐어요.<br>친구들이 알아볼 이름과 고유 아이디를 정해주세요.</div>
       <div class="auth-stack">
         <label>
           <input class="input" data-field="signup.name" maxlength="12" value="${escapeHtml(state.signup.name)}" placeholder="이름">
@@ -814,63 +879,15 @@ function signupView() {
           <input class="input" data-field="signup.id" maxlength="16" value="${escapeHtml(id)}" placeholder="@아이디">
           <div class="hint ${idHint.cls}" data-hint="signup.id">${idHint.text}</div>
         </label>
-        <label>
-          <input class="input" type="password" data-field="signup.pw" value="${escapeHtml(state.signup.pw)}" placeholder="비밀번호 (6자 이상)">
-          <div class="hint ${pwHint.cls}" data-hint="signup.pw" ${pwHint.text ? "" : `style="display:none"`}>${pwHint.text}</div>
-        </label>
-        <button class="btn ${enabled ? "" : "disabled"}" ${enabled ? "" : "disabled"} data-submit="signup" data-action="signup-submit">시작하기</button>
-        <button class="btn secondary" data-action="go-login">이미 계정이 있어요</button>
+        <button class="btn ${enabled ? "" : "disabled"}" ${enabled ? "" : "disabled"} data-submit="signup" data-action="setup-submit">시작하기</button>
+        <button class="text-link" style="background:transparent;text-align:center" data-action="setup-cancel">다른 계정으로 할래요</button>
       </div>
     </div>
   </section>`;
 }
 
-function loginView() {
-  return `<section class="screen">
-    <div class="auth-card">
-      <h1>다시 blur</h1>
-      <div class="subtitle">아이디로 로그인하거나 소셜 계정으로 계속하세요.</div>
-      <div class="auth-stack">
-        <input class="input" data-field="login.id" value="${escapeHtml(state.login.id)}" placeholder="@아이디">
-        <input class="input" data-field="login.password" value="${escapeHtml(state.login.password)}" type="password" placeholder="비밀번호">
-        ${state.login.error ? `<div class="hint bad">${escapeHtml(state.login.error)}</div>` : ""}
-        <button class="btn" data-action="login-submit">로그인</button>
-        <button class="text-link" style="background:transparent;text-align:center" data-action="forgot">비밀번호를 잊었어요</button>
-        <div class="divider">또는</div>
-        <button class="btn social kakao" data-action="social" data-provider="카카오"><span class="social-mark">K</span>카카오로 계속하기</button>
-        <button class="btn social naver" data-action="social" data-provider="네이버"><span class="social-mark">N</span>네이버로 계속하기</button>
-        <button class="btn social google" data-action="social" data-provider="Google"><span class="social-mark">G</span>Google로 계속하기</button>
-        <button class="btn secondary" data-action="go-signup">처음이라면 가입하기</button>
-      </div>
-    </div>
-  </section>`;
-}
-
-// 비밀번호 재설정 — 설정에서 발급해 둔 1회용 복구 코드로 (이메일 미연결 대안)
-function recoverView() {
-  const rc = state.recover;
-  const ok = recoverReady(rc);
-  const mismatch = rc.pw && rc.pw2 && rc.pw !== rc.pw2;
-  return `<section class="screen">
-    <div class="auth-card">
-      <h1>비밀번호 재설정</h1>
-      <div class="subtitle">설정 &gt; 계정에서 발급한 복구 코드로 새 비밀번호를 만들어요.<br>코드가 없다면 운영자에게 문의해 주세요.</div>
-      <div class="auth-stack">
-        <input class="input" data-field="recover.id" value="${escapeHtml(rc.id)}" placeholder="@아이디">
-        <input class="input" data-field="recover.code" value="${escapeHtml(rc.code)}" placeholder="복구 코드 (예: ABCD-EFGH-JKMN)" autocapitalize="characters" autocomplete="off">
-        <input class="input" type="password" data-field="recover.pw" value="${escapeHtml(rc.pw)}" placeholder="새 비밀번호 (6자 이상)">
-        <input class="input" type="password" data-field="recover.pw2" value="${escapeHtml(rc.pw2)}" placeholder="새 비밀번호 확인">
-        <div class="hint bad" data-hint="recover.match" ${mismatch ? "" : `style="display:none"`}>새 비밀번호가 서로 달라요</div>
-        ${rc.error ? `<div class="hint bad">${escapeHtml(rc.error)}</div>` : ""}
-        <button class="btn ${ok ? "" : "disabled"}" ${ok ? "" : "disabled"} data-recover-submit data-action="recover-submit">비밀번호 바꾸기</button>
-        <button class="btn secondary" data-action="go-login">로그인으로 돌아가기</button>
-      </div>
-    </div>
-  </section>`;
-}
-
-function recoverReady(rc) {
-  return Boolean(rc.id.trim() && rc.code.replace(/[^A-Z0-9]/g, "").length >= 10 && rc.pw.length >= 6 && rc.pw === rc.pw2);
+function providerLabel(provider) {
+  return { kakao: "카카오", google: "Google" }[provider] || "소셜";
 }
 
 function appView() {
@@ -981,6 +998,116 @@ function allView() {
   </section>`;
 }
 
+// ---------------- 연락처 친구 찾기 (migration-10) ----------------
+// 번호를 한국 기준 표준형으로 — 숫자만 남기고 +82 → 0 로 치환. 내 번호와 상대 연락처가
+// 같은 문자열로 정규화돼야 해시가 일치한다.
+function normalizePhone(raw) {
+  let d = String(raw || "").replace(/[^0-9]/g, "");
+  if (d.startsWith("82")) d = "0" + d.slice(2);
+  return d;
+}
+
+// 정규화한 번호의 SHA-256 해시(16진). 원본 번호는 서버로 보내지 않는다.
+async function hashPhone(raw) {
+  const norm = normalizePhone(raw);
+  if (norm.length < 9) return null; // 유효하지 않은 번호는 건너뜀
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("blur:" + norm));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// 내 번호 등록/변경
+async function savePhone() {
+  const raw = state.phoneSheet?.value || "";
+  const norm = normalizePhone(raw);
+  if (norm.length < 9) { toast("전화번호를 정확히 입력해주세요"); return; }
+  update((s) => { s.busy = "phone"; });
+  try {
+    const hash = await hashPhone(raw);
+    await api.setMyContactHash(state.me, hash);
+    update((s) => { s.busy = ""; s.myPhoneSet = true; s.phoneSheet = null; });
+    toast("전화번호를 등록했어요");
+  } catch (error) {
+    update((s) => { s.busy = ""; });
+    toast(error.message || "등록하지 못했어요");
+  }
+}
+
+// 내 번호 삭제
+async function deletePhone() {
+  update((s) => { s.busy = "phone"; });
+  try {
+    await api.deleteMyContactHash(state.me);
+    update((s) => { s.busy = ""; s.myPhoneSet = false; s.phoneSheet = null; });
+    toast("전화번호를 삭제했어요");
+  } catch (error) {
+    update((s) => { s.busy = ""; });
+    toast(error.message || "삭제하지 못했어요");
+  }
+}
+
+// 기기 연락처를 읽어 가입한 지인을 추천 친구 맨 앞에 올림
+async function loadContacts() {
+  // 웹 표준 Contact Picker API — 안드로이드 크롬만 지원. iOS 사파리·데스크톱 미지원.
+  if (!("contacts" in navigator) || !navigator.contacts?.select) {
+    toast("이 브라우저는 연락처 접근을 지원하지 않아요. 앱 출시 후 iPhone에서 지원돼요.");
+    return;
+  }
+  let picked;
+  try {
+    picked = await navigator.contacts.select(["tel"], { multiple: true });
+  } catch {
+    return; // 사용자가 취소
+  }
+  if (!picked || !picked.length) return;
+  const numbers = [];
+  picked.forEach((c) => (c.tel || []).forEach((t) => numbers.push(t)));
+  const hashes = [...new Set((await Promise.all(numbers.map(hashPhone))).filter(Boolean))];
+  if (!hashes.length) { toast("연락처에서 번호를 찾지 못했어요"); return; }
+  update((s) => { s.busy = "contacts"; });
+  try {
+    const uids = await api.matchContacts(hashes);
+    let found = 0;
+    update((s) => {
+      s.busy = "";
+      const hits = [];
+      uids.forEach((uid) => {
+        const p = s.people.find((x) => x.uid === uid);
+        if (!p || p.uid === s.me) return;
+        if (s.friends.includes(p.id) || s.reqs.includes(p.id)) return;
+        s.contactHit[p.id] = true;
+        hits.push(p.id);
+      });
+      s.recs = [...hits, ...s.recs.filter((rid) => !hits.includes(rid))];
+      found = hits.length;
+    });
+    toast(found
+      ? `연락처에서 친구 ${found}명을 찾았어요`
+      : "연락처에 blur를 쓰는 친구가 아직 없어요");
+  } catch (error) {
+    update((s) => { s.busy = ""; });
+    toast(error.message || "연락처를 확인하지 못했어요");
+  }
+}
+
+// 내 번호 등록 시트
+function phoneSheet() {
+  const p = state.phoneSheet || {};
+  return `<div class="report-layer">
+    <div class="dim" data-action="close-phone"></div>
+    <section class="sheet">
+      <div class="handle"></div>
+      <div class="section-title">전화번호 등록</div>
+      <div class="hint" style="margin-bottom:12px">연락처에 내 번호를 저장한 지인이 blur에서 나를 찾을 수 있어요. 번호는 암호화(해시)되어 저장되고 원본은 서버에 남지 않아요.</div>
+      <input class="input" inputmode="tel" data-field="phoneSheet.value" value="${escapeHtml(p.value || "")}" placeholder="010-0000-0000">
+      <div style="display:grid;gap:8px;margin-top:14px">
+        <button class="btn" data-action="save-phone">${state.myPhoneSet ? "번호 변경" : "등록하기"}</button>
+        ${state.myPhoneSet ? `<button class="btn secondary" data-action="delete-phone">번호 삭제</button>` : ""}
+        <button class="btn secondary" data-action="close-phone">취소</button>
+      </div>
+    </section>
+  </div>`;
+}
+
 function friendsView() {
   return `<section class="screen">
     <div class="topbar">
@@ -1008,11 +1135,26 @@ function friendsListHtml() {
       const u = personById(id);
       if (!u) return null;
       const mutual = state.fofMutual[id];
-      return { ...u, mutual: mutual ? `함께 아는 친구 ${mutual}명` : "" };
+      const label = state.contactHit[id]
+        ? "연락처에 있는 친구"
+        : (mutual ? `함께 아는 친구 ${mutual}명` : "");
+      return { ...u, mutual: label };
     })
     .filter((u) => u && matches(u));
   const recsShown = query ? recUsers : recUsers.slice(0, 5);
-  return `${state.reqs.length ? `<section class="section">
+  const contactCard = query ? "" : `<section class="section">
+      <div class="contact-find">
+        <div class="contact-find-title">연락처로 친구 찾기</div>
+        <div class="contact-find-sub">${state.myPhoneSet
+          ? "내 번호 등록됨 · 연락처에 나를 저장한 지인이 나를 찾을 수 있어요"
+          : "연락처에 저장된 지인 중 blur를 쓰는 사람을 추천 친구에 올려드려요"}</div>
+        <div class="contact-find-actions">
+          <button class="btn" data-action="load-contacts">연락처 불러오기</button>
+          <button class="btn secondary" data-action="open-phone">${state.myPhoneSet ? "내 번호 변경" : "내 번호 등록"}</button>
+        </div>
+      </div>
+    </section>`;
+  return `${contactCard}${state.reqs.length ? `<section class="section">
       <h2 class="section-title">받은 친구 요청</h2>
       <div class="row-list">${state.reqs.map((id) => personRow(personById(id), "request")).join("")}</div>
     </section>` : ""}
@@ -1063,7 +1205,8 @@ function personRow(user, mode) {
 function myView() {
   const my = personById("me");
   const archive = state.posts.filter((post) => post.authorId === "me" && !post.archived);
-  const bio = (state.profile.bio || "").trim();
+  const bioRaw = state.profile.bio || "";
+  const bio = bioRaw.trim();
   return `<section class="screen sage">
     <div class="topbar">
       <div style="flex:1"></div>
@@ -1076,7 +1219,9 @@ function myView() {
       <div class="room-id">@${escapeHtml(state.profile.id)}</div>
       ${bio
         ? `<div class="room-bio">${escapeHtml(bio)}</div>`
-        : `<button class="room-bio room-bio-empty" data-action="open-edit">나를 한 줄로 소개해보세요 ${icon("pencil", 11)}</button>`}
+        : bioRaw.length
+          ? ``
+          : `<button class="room-bio room-bio-empty" data-action="open-edit">나를 한 줄로 소개해보세요 ${icon("pencil", 11)}</button>`}
     </div>
     <div class="screen-scroll" style="margin-top:22px">
       ${archive.length
@@ -1135,33 +1280,11 @@ function overlayViews() {
     state.overlays.privateUser ? privateProfileSheet() : "",
     state.overlays.actionsFor ? friendActionsSheet() : "",
     state.overlays.logout ? logoutSheet() : "",
-    state.pwEdit ? pwView() : "",
     state.overlays.reportFor ? reportSheet() : "",
     state.overlays.dmDelete ? dmDeleteSheet() : "",
-    state.onboard ? onboardView() : "",
-    state.overlays.recoveryCode ? recoverySheet() : ""
+    state.phoneSheet ? phoneSheet() : "",
+    state.onboard ? onboardView() : ""
   ].join("");
-}
-
-// 비밀번호 변경 — 이메일 미연결(합성 주소)이라 재설정 메일 대신 로그인 상태에서 변경
-function pwView() {
-  const pw = state.pwEdit;
-  const ok = pw.cur.length >= 6 && pw.next.length >= 6 && pw.next === pw.next2;
-  const mismatch = pw.next && pw.next2 && pw.next !== pw.next2;
-  return `<section class="overlay">
-    <div class="topbar">
-      <button class="ghost-icon" data-action="close-pw">${icon("arrow-left", 17)}</button>
-      <div class="overlay-title">비밀번호 변경</div>
-      <div style="width:36px"></div>
-    </div>
-    <div class="screen-scroll" style="padding:24px 26px 40px;display:grid;gap:14px;align-content:start">
-      <input class="input" type="password" data-field="pw.cur" value="${escapeHtml(pw.cur)}" placeholder="현재 비밀번호">
-      <input class="input" type="password" data-field="pw.next" value="${escapeHtml(pw.next)}" placeholder="새 비밀번호 (6자 이상)">
-      <input class="input" type="password" data-field="pw.next2" value="${escapeHtml(pw.next2)}" placeholder="새 비밀번호 확인">
-      <div class="hint ${mismatch ? "bad" : ""}" data-hint="pw.match" ${mismatch ? "" : `style="display:none"`}>새 비밀번호가 서로 달라요</div>
-      <button class="btn ${ok ? "" : "disabled"}" ${ok ? "" : "disabled"} data-pw-submit data-action="save-pw">변경하기</button>
-    </div>
-  </section>`;
 }
 
 // 신고 사유 선택 시트 — 게시물·댓글·사용자 공용 (스토어 심사 요건)
@@ -1201,28 +1324,10 @@ function dmDeleteSheet() {
   </div>`;
 }
 
-// 복구 코드 발급 결과 — 이 자리에서만 보여주고 서버에는 해시만 남는다
-function recoverySheet() {
-  const code = state.overlays.recoveryCode;
-  return `<div class="report-layer">
-    <div class="dim" data-action="close-recovery"></div>
-    <section class="sheet">
-      <div class="handle"></div>
-      <div class="section-title">복구 코드</div>
-      <div class="hint" style="margin-bottom:10px">비밀번호를 잊었을 때 이 코드로 재설정해요.<br>지금 복사하거나 캡처해서 안전한 곳에 보관하세요 — <b>다시 보여드리지 않아요.</b><br>새로 발급하면 이전 코드는 무효가 돼요.</div>
-      <div style="text-align:center;font-weight:700;font-size:21px;letter-spacing:2px;padding:10px 0 16px;user-select:all">${escapeHtml(code)}</div>
-      <div style="display:grid;gap:8px">
-        <button class="btn" data-action="copy-recovery">코드 복사</button>
-        <button class="btn secondary" data-action="close-recovery">저장해 뒀어요</button>
-      </div>
-    </section>
-  </div>`;
-}
-
 const ONBOARD_SLIDES = [
   { icon: "sun", title: "매일 오전 6시, 새로운 주제", body: "24시간마다 주제가 바뀌어요 — 갱신은 매일 오전 6시.<br>오늘의 주제에 하루 한 번 응답해 보세요." },
   { icon: "camera", title: "사진 한 장, 혹은 5초 동영상", body: "오늘을 담은 사진이나 5초 이하 동영상으로 응답해요.<br>아트 필터로 나만의 질감도 입힐 수 있어요." },
-  { icon: "heart", title: "탭하면 선명해져요", body: "친구의 응답은 흐릿하게 도착해요.<br>탭해서 blur를 풀고 선명하게 감상하세요." }
+  { icon: "cloud", title: "탭하면 선명해져요", body: "친구의 응답은 흐릿하게 도착해요.<br>탭해서 blur를 풀고 선명하게 감상하세요." }
 ];
 
 function onboardView() {
@@ -1237,7 +1342,7 @@ function onboardView() {
       </div>
       <button class="btn" style="width:100%" data-action="onboard-done">blur 시작하기</button>`
     : `<div class="onboard-body">
-        <div class="onboard-icon">${icon(ONBOARD_SLIDES[ob.step].icon, 26)}</div>
+        <div class="onboard-icon">${icon(ONBOARD_SLIDES[ob.step].icon, 40)}</div>
         <div class="onboard-title">${ONBOARD_SLIDES[ob.step].title}</div>
         <div class="subtitle">${ONBOARD_SLIDES[ob.step].body}</div>
       </div>
@@ -1461,6 +1566,7 @@ function settingsView() {
         <div class="section-title">앱</div>
         <div style="display:grid;gap:8px">
           <div class="setting-row"><div><div class="person-name">알림</div><div class="person-id">친구 요청과 댓글 알림</div></div><button class="toggle ${state.notif ? "on" : ""}" data-action="toggle-setting" data-key="notif"></button></div>
+          <div class="setting-row"><div><div class="person-name">잠금화면 알림</div><div class="person-id">앱을 꺼놔도 새 소식이 폰 알림으로 와요</div></div><button class="toggle ${state.push ? "on" : ""}" data-action="toggle-push"></button></div>
           <div class="setting-row"><div><div class="person-name">공개 계정</div><div class="person-id">누구나 프로필과 지난 허브를 볼 수 있어요</div></div><button class="toggle ${state.myPublic ? "on" : ""}" data-action="toggle-setting" data-key="myPublic"></button></div>
         </div>
       </div>
@@ -1491,8 +1597,7 @@ function settingsView() {
       <div>
         <div class="section-title">계정</div>
         <div style="display:grid;gap:8px">
-          <button class="setting-row" style="text-align:left;cursor:pointer" data-action="open-pw"><div><div class="person-name">비밀번호 변경</div><div class="person-id">현재 비밀번호 확인 후 새로 설정해요</div></div><span style="color:var(--faint);display:inline-flex">${icon("chevron", 15)}</span></button>
-          <button class="setting-row" style="text-align:left;cursor:pointer" data-action="open-recovery"><div><div class="person-name">복구 코드 발급</div><div class="person-id">비밀번호를 잊었을 때 이 코드로 재설정해요</div></div><span style="color:var(--faint);display:inline-flex">${icon("chevron", 15)}</span></button>
+          <div class="setting-row"><div><div class="person-name">로그인 연결</div><div class="person-id">${providerLabel(state.provider)} 계정으로 로그인 중이에요</div></div></div>
           <button class="setting-row" style="text-align:left;cursor:pointer" data-action="open-logout"><div><div class="person-name">로그아웃</div><div class="person-id">다시 로그인하면 그대로 이어서 쓸 수 있어요</div></div><span style="color:var(--faint);display:inline-flex">${icon("chevron", 15)}</span></button>
           <button class="setting-row" style="text-align:left;cursor:pointer;color:var(--danger)" data-action="open-leave"><div><div class="person-name" style="color:var(--danger)">회원 탈퇴</div><div class="person-id">모든 데이터 삭제</div></div><span style="color:var(--faint);display:inline-flex">${icon("chevron", 15)}</span></button>
         </div>
@@ -2008,13 +2113,6 @@ function setField(field, value) {
   const s = state;
   if (field === "signup.name") s.signup.name = String(value).slice(0, 12);
   if (field === "signup.id") s.signup.id = normalizeId(value);
-  if (field === "signup.pw") s.signup.pw = String(value);
-  if (field === "login.id") s.login.id = String(value);
-  if (field === "login.password") s.login.password = String(value);
-  if (field === "recover.id") s.recover.id = String(value);
-  if (field === "recover.code") s.recover.code = String(value).toUpperCase().replace(/[^A-Z0-9-]/g, "").slice(0, 20);
-  if (field === "recover.pw") s.recover.pw = String(value);
-  if (field === "recover.pw2") s.recover.pw2 = String(value);
   if (field === "search") s.search = String(value);
   if (field === "chatSearch") s.chatSearch = String(value);
   if (field === "upload.caption") s.upload.caption = String(value).slice(0, 60);
@@ -2023,10 +2121,8 @@ function setField(field, value) {
   if (field === "edit.name") s.edit.name = String(value).slice(0, 12);
   if (field === "edit.id") s.edit.id = normalizeId(value);
   if (field === "edit.bio") s.edit.bio = String(value).slice(0, 80);
+  if (field === "phoneSheet.value" && s.phoneSheet) s.phoneSheet.value = String(value).slice(0, 20);
   if (field === "leave.agree") s.leave.agree = Boolean(value);
-  if (field === "pw.cur" && s.pwEdit) s.pwEdit.cur = String(value);
-  if (field === "pw.next" && s.pwEdit) s.pwEdit.next = String(value);
-  if (field === "pw.next2" && s.pwEdit) s.pwEdit.next2 = String(value);
   if (field === "onboard.color" && s.onboard) s.onboard.color = String(value);
   if (field === "edit.color" && s.edit) s.edit.color = String(value);
   if (field === "bgC1" || field === "bgC2") s[field] = String(value).toLowerCase();
@@ -2043,19 +2139,11 @@ function handleAction(action, el) {
   switch (action) {
     case "welcome-enter":
       return update((s) => { s.entered = true; });
-    case "go-signup":
-      return update((s) => { s.auth = "signup"; });
-    case "go-login":
-      return update((s) => { s.auth = "login"; s.login.error = ""; });
-    case "signup-submit":
-      return signup();
-    case "login-submit":
-      return login();
-    case "forgot":
-      return update((s) => {
-        s.auth = "recover";
-        s.recover = { id: s.login.id.replace(/^@/, ""), code: "", pw: "", pw2: "", error: "" };
-      });
+    case "setup-submit":
+      return completeSetup();
+    case "setup-cancel":
+      // 아이디를 정하기 전에 나가기 — 세션을 끊고 처음으로 (프로필 행은 다음 로그인 때 이어서 설정)
+      return doLogout();
     case "social":
       return socialLogin(el.dataset.provider);
     case "tab":
@@ -2144,26 +2232,22 @@ function handleAction(action, el) {
       return update((s) => { s.overlays.notif = true; });
     case "close-notif":
       return update((s) => { s.overlays.notif = false; s.overlays.notifFull = false; });
-    case "open-pw":
-      return update((s) => { s.pwEdit = { cur: "", next: "", next2: "" }; });
-    case "close-pw":
-      return update((s) => { s.pwEdit = null; });
-    case "save-pw":
-      return changePassword();
-    case "open-recovery":
-      return issueRecoveryCode();
-    case "close-recovery":
-      return update((s) => { s.overlays.recoveryCode = ""; });
-    case "copy-recovery":
-      return copyRecoveryCode();
-    case "recover-submit":
-      return doRecover();
     case "dm-actions":
       return update((s) => { s.overlays.dmDelete = el.dataset.msg; });
     case "close-dm-delete":
       return update((s) => { s.overlays.dmDelete = ""; });
     case "confirm-dm-delete":
       return deleteDm();
+    case "load-contacts":
+      return loadContacts();
+    case "open-phone":
+      return update((s) => { s.phoneSheet = { value: "" }; });
+    case "close-phone":
+      return update((s) => { s.phoneSheet = null; });
+    case "save-phone":
+      return savePhone();
+    case "delete-phone":
+      return deletePhone();
     case "open-report":
       return update((s) => { s.overlays.reportFor = { type: el.dataset.type, id: el.dataset.target }; });
     case "close-report":
@@ -2239,6 +2323,8 @@ function handleAction(action, el) {
       return update((s) => { s.overlays.settings = false; });
     case "toggle-setting":
       return toggleSetting(el.dataset.key);
+    case "toggle-push":
+      return togglePush();
     case "open-logout":
       return update((s) => { s.overlays.logout = true; });
     case "close-logout":
@@ -2266,48 +2352,29 @@ function handleAction(action, el) {
   }
 }
 
-async function signup() {
+// OAuth 첫 로그인 후 이름·아이디 확정 — setup_done을 켜면 다음부터는 바로 앱으로
+async function completeSetup() {
   const name = state.signup.name.trim().slice(0, 12);
   const id = normalizeId(state.signup.id);
-  const pw = state.signup.pw;
   if (!name || !validId(id)) return toast("이름과 아이디를 확인해 주세요");
-  if (pw.length < 6) return toast("비밀번호는 6자 이상이어야 해요");
-  update((s) => { s.busy = "계정을 만드는 중…"; });
+  update((s) => { s.busy = "계정을 준비하는 중…"; });
   try {
     const available = await api.isHandleAvailable(id);
     if (!available) {
       update((s) => { s.busy = ""; s.signup.avail = false; });
       return toast("이미 사용 중인 아이디예요");
     }
-    const session = await api.signUp(name, id, pw);
-    await loadAll(session.user.id);
+    await api.updateProfile(state.me, { handle: id, name, setup_done: true });
+    await loadAll(state.me);
     state.busy = "";
     state.auth = "app";
     // 가입 직후 첫 만남 안내 — 마지막 단계에서 프로필 그라데이션 색을 고른다
     state.onboard = { step: 0, color: palette[Math.floor(Math.random() * palette.length)] };
     render();
+    startLive();
   } catch (error) {
     update((s) => { s.busy = ""; });
-    toast(error.message || "가입에 실패했어요");
-  }
-}
-
-async function login() {
-  const id = normalizeId(state.login.id);
-  if (!id || !state.login.password) {
-    return update((s) => { s.login.error = "아이디와 비밀번호를 모두 입력해 주세요"; });
-  }
-  update((s) => { s.busy = "로그인하는 중…"; });
-  try {
-    const session = await api.signIn(id, state.login.password);
-    await loadAll(session.user.id);
-    state.busy = "";
-    state.auth = "app";
-    state.login = { id: "", password: "", error: "" };
-    render();
-    toast("다시 만났네요");
-  } catch {
-    update((s) => { s.busy = ""; s.login.error = "아이디 또는 비밀번호가 맞지 않아요"; });
+    toast(error.message || "계정을 준비하지 못했어요");
   }
 }
 
@@ -2324,16 +2391,17 @@ async function finishOnboard() {
     });
   } catch { /* 색 저장 실패는 치명적이지 않음 — 프로필 수정에서 다시 바꿀 수 있다 */ }
   toast("blur에 오신 걸 환영해요");
-  // 가입 직후 복구 코드를 한 번 발급해 보여준다 — 비밀번호를 잊었을 때의 자가 복구 수단
-  try {
-    const code = api.generateRecoveryCode();
-    await api.setRecoveryCode(code);
-    update((s) => { s.overlays.recoveryCode = code; });
-  } catch { /* migration-08 전이면 설정 > 계정에서 발급 */ }
 }
 
-function socialLogin(provider) {
-  toast(`${provider} 로그인은 앱 출시 단계에서 열려요`);
+// 카카오/구글 인증 페이지로 이동 — 돌아오면 boot()가 세션을 받아 이어간다
+async function socialLogin(provider) {
+  update((s) => { s.busy = `${providerLabel(provider)}로 이동하는 중…`; });
+  try {
+    await api.signInWithProvider(provider);
+  } catch (error) {
+    update((s) => { s.busy = ""; });
+    toast(error.message || "로그인을 시작하지 못했어요");
+  }
 }
 
 async function doLogout() {
@@ -2380,6 +2448,9 @@ async function friendAction(kind, handle) {
       block: "차단했어요"
     };
     toast(messages[kind]);
+    // 잠금화면 알림 발송 (상대가 구독돼 있으면) — 파이어 앤 포겟
+    if (kind === "request") api.notify("request", uid);
+    else if (kind === "accept") api.notify("accept", uid);
     // 수락하면 새 친구의 오늘 허브가 새로고침 없이 바로 보이도록 전체 재적재 (베타 피드백 8)
     if (kind === "accept") scheduleRefresh();
   } catch (error) {
@@ -2864,10 +2935,13 @@ async function sendComment() {
   if (!text || !postId) return;
   try {
     const row = await api.addComment(state.me, postId, text);
+    const post = state.posts.find((p) => p.id === postId);
     update((s) => {
-      const post = s.posts.find((p) => p.id === postId);
-      if (post) post.comments.push({ id: row?.id, by: "me", text, at: Date.now() });
+      const p = s.posts.find((x) => x.id === postId);
+      if (p) p.comments.push({ id: row?.id, by: "me", text, at: Date.now() });
     });
+    // 내 댓글이 아니면 게시물 작성자에게 잠금화면 알림
+    if (post && post.authorId !== "me") api.notify("comment", uidOf(post.authorId));
   } catch (error) {
     toast(error.message || "댓글을 남기지 못했어요");
   }
@@ -2984,6 +3058,7 @@ async function sendDm() {
     update((s) => {
       s.messages.push({ id: row?.id, from: "me", to: handle, body, at: Date.now(), read: false });
     });
+    api.notify("message", otherUid); // 상대에게 잠금화면 알림
     document.querySelector("#dm-input")?.focus({ preventScroll: true });
   } catch (error) {
     toast(error.message || "메시지를 보내지 못했어요 — 친구끼리만 대화할 수 있어요");
@@ -3008,7 +3083,9 @@ async function saveEdit() {
     }
     const name = edit.name.trim().slice(0, 12);
     const emoji = edit.emoji || name.slice(0, 1);
-    const bio = (edit.bio || "").trim().slice(0, 80);
+    // 공백만 입력해 저장하면 '한 줄 소개 없음'으로 처리 — 안내 문구가 사라지도록 공백 1칸을 저장
+    const bioInput = (edit.bio || "").slice(0, 80);
+    const bio = bioInput.trim() ? bioInput.trim() : (bioInput.length ? " " : "");
     await api.updateProfile(state.me, { handle: id, name, color: edit.color, emoji, avatar_url: avatarUrl || null, bio });
     update((s) => {
       s.busy = "";
@@ -3021,70 +3098,6 @@ async function saveEdit() {
   } catch (error) {
     update((s) => { s.busy = ""; });
     toast(error.message || "저장하지 못했어요");
-  }
-}
-
-// 비밀번호 변경 — 현재 비밀번호 재확인 후 갱신 (이메일 재설정은 합성 주소라 불가)
-async function changePassword() {
-  const pw = state.pwEdit;
-  if (!pw) return;
-  if (pw.next.length < 6 || pw.next !== pw.next2) return toast("새 비밀번호를 확인해 주세요");
-  update((s) => { s.busy = "비밀번호를 바꾸는 중…"; });
-  const okCur = await api.verifyPassword(state.profile.id, pw.cur).catch(() => false);
-  if (!okCur) {
-    update((s) => { s.busy = ""; });
-    return toast("현재 비밀번호가 맞지 않아요");
-  }
-  try {
-    await api.updatePassword(pw.next);
-    update((s) => { s.busy = ""; s.pwEdit = null; });
-    toast("비밀번호를 바꿨어요");
-  } catch (error) {
-    update((s) => { s.busy = ""; });
-    const same = /different from the old/i.test(error.message || "");
-    toast(same ? "이전과 다른 비밀번호를 입력해 주세요" : error.message || "비밀번호를 바꾸지 못했어요");
-  }
-}
-
-// 복구 코드 발급 — 서버엔 해시만 저장, 코드는 이 시트에서만 보여준다
-async function issueRecoveryCode() {
-  update((s) => { s.busy = "복구 코드를 만드는 중…"; });
-  try {
-    const code = api.generateRecoveryCode();
-    await api.setRecoveryCode(code);
-    update((s) => { s.busy = ""; s.overlays.settings = false; s.overlays.recoveryCode = code; });
-  } catch (error) {
-    update((s) => { s.busy = ""; });
-    toast(error.message || "복구 코드를 만들지 못했어요");
-  }
-}
-
-async function copyRecoveryCode() {
-  try {
-    await navigator.clipboard.writeText(state.overlays.recoveryCode);
-    toast("복구 코드를 복사했어요");
-  } catch {
-    toast("복사가 안 되면 코드를 길게 눌러 직접 복사해 주세요");
-  }
-}
-
-// 복구 코드로 비밀번호 재설정 → 성공하면 아이디를 채워 로그인 화면으로
-async function doRecover() {
-  const rc = state.recover;
-  if (!recoverReady(rc)) return;
-  const handle = rc.id.trim().replace(/^@/, "");
-  update((s) => { s.busy = "비밀번호를 다시 설정하는 중…"; });
-  try {
-    await api.resetPasswordWithCode(handle, rc.code, rc.pw);
-    update((s) => {
-      s.busy = "";
-      s.auth = "login";
-      s.login = { id: handle, password: "", error: "" };
-      s.recover = { id: "", code: "", pw: "", pw2: "", error: "" };
-    });
-    toast("비밀번호를 새로 만들었어요. 다시 로그인해 주세요");
-  } catch (error) {
-    update((s) => { s.busy = ""; s.recover.error = error.message || "재설정하지 못했어요"; });
   }
 }
 

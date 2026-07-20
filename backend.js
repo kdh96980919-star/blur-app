@@ -5,10 +5,6 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// 가입 시 아이디로 합성하는 인증용 이메일 (사용자에게 노출되지 않음)
-const AUTH_DOMAIN = "blur-app.test";
-const emailFor = (handle) => `${handle}@${AUTH_DOMAIN}`;
-
 // 허브 날짜는 서버(current_date, UTC) 기준 — 한국시간 오전 9시에 새 허브가 열림
 // 허브 날짜 — 매일 한국시간 오전 6시에 새 주제로 갱신.
 // KST(UTC+9)의 06:00 롤오버 = UTC 21:00이므로, (지금 + 3시간)의 UTC 날짜가 그날의 허브 날짜가 된다.
@@ -51,40 +47,21 @@ export async function getSession() {
   return data.session || null;
 }
 
-export async function signUp(name, handle, password) {
-  const { data, error } = await supabase.auth.signUp({
-    email: emailFor(handle),
-    password,
-    options: { data: { name, handle } }
+// 소셜 로그인(카카오·구글) — Supabase OAuth 페이지로 이동, 인증 후 이 앱 주소로 돌아온다.
+// 계정 생성·비밀번호·복구는 전부 프로바이더(카카오/구글) 쪽 이메일 계정이 담당한다.
+// 주의: Supabase는 카카오에 닉네임·이메일·프로필 사진 3개 동의를 항상 요청한다
+// (클라이언트 scopes 옵션은 병합만 되고 제거 불가) — 카카오 콘솔 동의항목에서
+// 세 항목이 모두 설정돼 있어야 KOE205가 나지 않는다. docs/oauth-setup.md 참고.
+export async function signInWithProvider(provider) {
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider,
+    options: { redirectTo: location.origin + location.pathname }
   });
   if (error) fail(error);
-  return data.session;
-}
-
-export async function signIn(handle, password) {
-  let email = emailFor(handle);
-  // 아이디를 바꾼 계정도 로그인되도록 서버에서 인증 이메일 조회 (migration-02)
-  const { data: mapped, error: rpcError } = await supabase.rpc("email_for_handle", { candidate: handle });
-  if (!rpcError && mapped) email = mapped;
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) fail(error);
-  return data.session;
 }
 
 export async function signOut() {
   await supabase.auth.signOut();
-}
-
-// 비밀번호 변경 — 이메일이 합성 주소라 재설정 메일은 불가, 로그인 상태에서만 바꾼다
-export async function updatePassword(password) {
-  const { error } = await supabase.auth.updateUser({ password });
-  if (error) fail(error);
-}
-
-// 현재 비밀번호 확인 — 변경 전 본인 확인용 재로그인
-export async function verifyPassword(handle, password) {
-  const { error } = await supabase.auth.signInWithPassword({ email: emailFor(handle), password });
-  return !error;
 }
 
 // 신고 접수 — 관리자(대시보드)가 검토 (migration-06)
@@ -119,41 +96,6 @@ export async function deleteAccount(uid) {
   const { error } = await supabase.rpc("delete_own_account");
   if (error) fail(error);
   await supabase.auth.signOut();
-}
-
-// ---------------- 복구 코드 (migration-08) ----------------
-// 합성 이메일이라 재설정 메일이 불가 — 1회용 복구 코드로 비밀번호를 재설정한다.
-
-// 헷갈리는 문자(I·L·O·0·1) 제외 31자 알파벳, 12자 ≈ 59비트
-export function generateRecoveryCode() {
-  const alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
-  const bytes = crypto.getRandomValues(new Uint8Array(12));
-  const chars = [...bytes].map((b) => alphabet[b % alphabet.length]);
-  return `${chars.slice(0, 4).join("")}-${chars.slice(4, 8).join("")}-${chars.slice(8).join("")}`;
-}
-
-const normalizeRecoveryCode = (code) => String(code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-
-export async function setRecoveryCode(code) {
-  const { error } = await supabase.rpc("set_recovery_code", { code: normalizeRecoveryCode(code) });
-  if (error) fail(error);
-}
-
-// 서버는 상태 문자열을 반환한다(예외를 던지면 롤백으로 시도 기록이 사라져 레이트 리밋이 무력화됨)
-const RESET_MESSAGES = {
-  weak_password: "새 비밀번호는 6자 이상이어야 해요",
-  rate_limited: "시도가 너무 많았어요. 1시간 뒤 다시 시도해 주세요",
-  invalid: "아이디 또는 복구 코드가 맞지 않아요"
-};
-
-export async function resetPasswordWithCode(handle, code, newPassword) {
-  const { data, error } = await supabase.rpc("reset_password_with_code", {
-    candidate: handle,
-    code: normalizeRecoveryCode(code),
-    new_password: newPassword
-  });
-  if (error) fail(error);
-  if (data !== "ok") throw new Error(RESET_MESSAGES[data] || "재설정하지 못했어요");
 }
 
 export async function isHandleAvailable(handle) {
@@ -350,6 +292,74 @@ export async function fetchSuggestions() {
   const { data, error } = await supabase.rpc("friend_suggestions");
   if (error) return null;
   return data || [];
+}
+
+// ---------------- 연락처 친구 찾기 (migration-10) ----------------
+// 번호 원본은 절대 저장하지 않는다 — 정규화·해시는 app.js(클라이언트)에서 끝내고 해시만 오간다.
+
+// 내 번호 해시 등록/갱신 (지인이 연락처로 나를 찾을 수 있게)
+export async function setMyContactHash(uid, phoneHash) {
+  const { error } = await supabase
+    .from("contact_hashes")
+    .upsert({ user_id: uid, phone_hash: phoneHash, updated_at: new Date().toISOString() });
+  if (error) fail(error);
+}
+
+// 내 번호 등록 여부 — 테이블이 없거나(마이그레이션 전) 미등록이면 null
+export async function fetchMyContactHash(uid) {
+  const { data, error } = await supabase
+    .from("contact_hashes").select("phone_hash").eq("user_id", uid).maybeSingle();
+  if (error) return null;
+  return data?.phone_hash || null;
+}
+
+// 내 번호 삭제
+export async function deleteMyContactHash(uid) {
+  const { error } = await supabase.from("contact_hashes").delete().eq("user_id", uid);
+  if (error) fail(error);
+}
+
+// 연락처 번호 해시 목록으로 가입자 매칭 → user_id 배열. 마이그레이션 전이면 빈 배열
+export async function matchContacts(hashes) {
+  if (!hashes || !hashes.length) return [];
+  const { data, error } = await supabase.rpc("match_contacts", { hashes });
+  if (error) return [];
+  return (data || []).map((r) => r.user_id);
+}
+
+// ---------------- 웹 푸시 (migration-11 + notify Edge Function) ----------------
+
+// 브라우저 PushManager 구독을 저장 (endpoint 기준 upsert — 같은 기기 재구독 시 갱신)
+export async function savePushSubscription(uid, sub) {
+  const json = typeof sub.toJSON === "function" ? sub.toJSON() : sub;
+  const row = {
+    user_id: uid,
+    endpoint: json.endpoint,
+    p256dh: json.keys?.p256dh || "",
+    auth: json.keys?.auth || ""
+  };
+  const { error } = await supabase
+    .from("push_subscriptions")
+    .upsert(row, { onConflict: "endpoint" });
+  if (error) fail(error);
+}
+
+// 이 기기의 구독 삭제 (알림 끄기)
+export async function deletePushSubscription(endpoint) {
+  if (!endpoint) return;
+  const { error } = await supabase.from("push_subscriptions").delete().eq("endpoint", endpoint);
+  if (error) fail(error);
+}
+
+// 대상자에게 웹 푸시 발송 요청 — 실제 발송/서명은 서버(notify Edge Function)가 한다.
+// 실패해도 앱 흐름은 막지 않는다(파이어 앤 포겟). 알림 문구는 서버가 type으로 생성.
+export async function notify(type, toUid) {
+  if (!toUid) return;
+  try {
+    await supabase.functions.invoke("notify", { body: { type, toUid } });
+  } catch (e) {
+    // 알림 발송 실패는 조용히 무시 (기능 미배포·오프라인 등)
+  }
 }
 
 // ---------------- 메시지 (DM, migration-05) ----------------

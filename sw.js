@@ -1,4 +1,4 @@
-const CACHE_NAME = "blur-service-v14";
+const CACHE_NAME = "blur-service-v16";
 const ASSETS = [
   "./",
   "./index.html",
@@ -24,6 +24,35 @@ self.addEventListener("activate", (event) => {
     caches.keys()
       .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
       .then(() => self.clients.claim())
+  );
+});
+
+// 웹 푸시 수신 — notify Edge Function이 보낸 페이로드로 잠금화면 알림을 띄운다 (migration-11)
+self.addEventListener("push", (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch (e) { data = {}; }
+  const title = data.title || "blur";
+  const options = {
+    body: data.body || "",
+    icon: "./assets/icon.svg",
+    badge: "./assets/icon.svg",
+    tag: data.tag || "blur-notif",
+    data: { url: data.url || "./" }
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// 알림 탭 → 열려 있는 앱으로 포커스, 없으면 새로 연다
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const target = (event.notification.data && event.notification.data.url) || "./";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      for (const client of clients) {
+        if ("focus" in client) return client.focus();
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(target);
+    })
   );
 });
 
