@@ -950,7 +950,10 @@ function tabView() {
 // 화면 높이에 따라 사진 폭을 줄여 이름·댓글이 잘리지 않게 하는 카드 폭 계산 (베타 피드백 3)
 function cardWidth(ratio) {
   const ar = { "1 / 1": 1, "16 / 9": 16 / 9, "4 / 5": 0.8 }[ratio] || 0.8;
-  return `min(${ratioWidth(ratio)}, calc((100svh - 430px) * ${ar.toFixed(4)}), 100%)`;
+  // 세로 예산으로 카드 폭을 정한다. svh는 iOS 전체화면(black-translucent)에서
+  // 안전영역만큼 작게 잡혀 카드가 쪼그라들었다 → dvh(전체 뷰포트)로 바꾸고
+  // 상·하단 안전영역을 명시적으로 빼 짧은 화면에서도 넘치지 않게 한다.
+  return `min(${ratioWidth(ratio)}, calc((100dvh - 430px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) * ${ar.toFixed(4)}), 100%)`;
 }
 
 function bellButton() {
