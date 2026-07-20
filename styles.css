@@ -693,8 +693,19 @@ button:focus {
   box-shadow: inset 0 0 0 1px rgba(60, 64, 67, .18);
 }
 
-.home-carousel {
+/* 허브 pill + 카드 + 인디케이터를 한 그룹으로 묶어 탭바 위 영역에 함께 중앙 정렬한다.
+   (예전엔 카드만 세로중앙이라 화면이 길면 허브와 카드 사이가 크게 벌어졌다) */
+.home-body {
   flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding-bottom: calc(var(--tab-h) + env(safe-area-inset-bottom, 0px));
+}
+
+.home-carousel {
+  flex: 0 1 auto;
   display: flex;
   align-items: center;
   gap: 18px;

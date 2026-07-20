@@ -950,10 +950,10 @@ function tabView() {
 // 화면 높이에 따라 사진 폭을 줄여 이름·댓글이 잘리지 않게 하는 카드 폭 계산 (베타 피드백 3)
 function cardWidth(ratio) {
   const ar = { "1 / 1": 1, "16 / 9": 16 / 9, "4 / 5": 0.8 }[ratio] || 0.8;
-  // 세로 예산으로 카드 폭을 정한다. svh는 iOS 전체화면(black-translucent)에서
-  // 안전영역만큼 작게 잡혀 카드가 쪼그라들었다 → dvh(전체 뷰포트)로 바꾸고
-  // 상·하단 안전영역을 명시적으로 빼 짧은 화면에서도 넘치지 않게 한다.
-  return `min(${ratioWidth(ratio)}, calc((100dvh - 430px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) * ${ar.toFixed(4)}), 100%)`;
+  // 카드 크기는 화면 '폭' 기준(80vw + 비율별 상한)으로 정한다. 예전엔 세로(svh/dvh)
+  // 예산으로 정했는데, 사파리 툴바나 iOS 전체화면 안전영역으로 뷰포트 높이가
+  // 짧아지면 카드가 쪼그라들었다. 세로 조건은 짧은 화면에서 넘침만 막는 안전장치.
+  return `min(80vw, ${ratioWidth(ratio)}, calc((100dvh - 300px) * ${ar.toFixed(4)}))`;
 }
 
 function bellButton() {
@@ -974,6 +974,7 @@ function homeView() {
         : `<button class="circ yellow icon-btn plus" aria-label="사진 올리기" data-action="quick-upload">${icon("plus", 19)}</button>`}
       ${bellButton()}
     </div>
+    <div class="home-body">
     <div class="h-big"><div class="topic-callout">${topic ? escapeHtml(topic) : `<span style="color:var(--muted)">허브를 준비하고 있어요</span>`}</div></div>
     ${posts.length ? `<div class="home-carousel" data-carousel>
       ${posts.map((post) => {
@@ -996,6 +997,7 @@ function homeView() {
       }).join("")}
     </div>
     ${carouselIndicator(posts.length, 0)}` : `<div class="empty">아직 응답한 친구가 없어요</div>`}
+    </div>
   </section>`;
 }
 
@@ -3450,25 +3452,3 @@ window.addEventListener("online", () => {
 
 render();
 boot();
-
-// ⚠️ TEMP 진단 오버레이 — 디바이스 뷰포트/폰높이/탭바 위치 실측 (진단 후 제거 예정)
-(function debugViewport() {
-  const box = document.createElement("div");
-  box.style.cssText = "position:fixed;top:0;left:0;z-index:99999;background:rgba(0,0,0,.82);color:#5f5;font:11px/1.35 monospace;padding:5px 7px;white-space:pre;pointer-events:none;border-bottom-right-radius:8px";
-  document.body.appendChild(box);
-  const unit = (u) => { const e = document.createElement("div"); e.style.cssText = "position:fixed;left:-99px;width:1px;height:100" + u; document.body.appendChild(e); const h = e.getBoundingClientRect().height; e.remove(); return Math.round(h); };
-  const inset = (s) => { const e = document.createElement("div"); e.style.cssText = "position:fixed;left:-99px;width:1px;height:env(safe-area-inset-" + s + ",0px)"; document.body.appendChild(e); const h = e.getBoundingClientRect().height; e.remove(); return Math.round(h); };
-  (function tick() {
-    const p = document.querySelector(".phone");
-    const t = document.querySelector(".tabbar");
-    const pr = p ? p.getBoundingClientRect() : { width: 0, height: 0, top: 0, bottom: 0 };
-    const tr = t ? t.getBoundingClientRect() : null;
-    box.textContent =
-      "win " + innerWidth + "x" + innerHeight + " dpr" + devicePixelRatio + "\n" +
-      "svh" + unit("svh") + " dvh" + unit("dvh") + " lvh" + unit("lvh") + "\n" +
-      "safe T" + inset("top") + " B" + inset("bottom") + "\n" +
-      "phone " + Math.round(pr.width) + "x" + Math.round(pr.height) + " top" + Math.round(pr.top) + " bot" + Math.round(pr.bottom) + "\n" +
-      (tr ? "tab top" + Math.round(tr.top) + " bot" + Math.round(tr.bottom) + " belowGap" + Math.round(pr.bottom - tr.bottom) : "no tabbar");
-    requestAnimationFrame(tick);
-  })();
-})();
