@@ -460,18 +460,22 @@ button:focus {
 }
 
 /* 앱 사용 중 연결이 끊겼을 때 위에 걸리는 얇은 배너 */
+/* 중앙정렬은 left/right+margin:auto로 — transform은 riseIn 애니메이션(translateY)이 덮어쓰므로
+   translateX(-50%)를 쓰면 정렬이 풀린다. .phone은 overflow:hidden이라 삐져나가면 잘린다. */
 .offline-banner {
   position: absolute;
   top: calc(env(safe-area-inset-top, 0px) + 10px);
-  left: 50%;
-  transform: translateX(-50%);
+  left: 12px;
+  right: 12px;
+  margin-left: auto;
+  margin-right: auto;
+  width: fit-content;
+  max-width: calc(100% - 24px);
   z-index: 60;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  width: max-content;
-  max-width: calc(100% - 24px);
   padding: 8px 14px;
   border-radius: 999px;
   background: rgba(56, 51, 63, .92);
@@ -483,6 +487,7 @@ button:focus {
   animation: riseIn .28s ease both;
 }
 .offline-banner svg { flex: none; }
+.offline-banner span { min-width: 0; }
 
 .btn:disabled,
 .btn.disabled {
