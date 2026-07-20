@@ -1,4 +1,4 @@
-const CACHE_NAME = "blur-service-v16";
+const CACHE_NAME = "blur-service-v17";
 const ASSETS = [
   "./",
   "./index.html",
@@ -31,7 +31,8 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("push", (event) => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch (e) { data = {}; }
-  const title = data.title || "blur";
+  // 제목은 서버가 빈 문자열을 보낼 수 있다(iOS "from blur" 중복 방지) — ??로 빈 문자열을 보존
+  const title = data.title ?? "blur";
   const options = {
     body: data.body || "",
     icon: "./assets/icon.svg",

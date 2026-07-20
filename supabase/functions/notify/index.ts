@@ -68,7 +68,9 @@ Deno.serve(async (req) => {
     // 보낸 사람 이름 (문구는 서버가 생성)
     const { data: prof } = await admin.from("profiles").select("name").eq("user_id", caller.id).single();
     const name = prof?.name || "친구";
-    const payload = JSON.stringify({ title: "blur", body: bodyText(type, name), url: "./", tag: type });
+    // 제목은 비워서 보낸다 — iOS는 상단에 앱이름("blur")을 이미 보여주고, 제목 줄엔 "from "을
+    // 자동으로 붙이므로("from blur" 중복) 제목을 비우고 메시지는 본문에만 담는다.
+    const payload = JSON.stringify({ title: "", body: bodyText(type, name), url: "./", tag: type });
 
     // 대상자 구독 발송
     const { data: subs } = await admin.from("push_subscriptions").select("*").eq("user_id", toUid);

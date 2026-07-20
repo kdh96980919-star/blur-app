@@ -1330,23 +1330,41 @@ const ONBOARD_SLIDES = [
   { icon: "cloud", title: "탭하면 선명해져요", body: "친구의 응답은 흐릿하게 도착해요.<br>탭해서 blur를 풀고 선명하게 감상하세요." }
 ];
 
+// 온보딩 단계: 정보 슬라이드 3장 → 프로필 색 → 알림 켜기
+const ONBOARD_COLOR_STEP = ONBOARD_SLIDES.length;       // 색 고르기
+const ONBOARD_PUSH_STEP = ONBOARD_SLIDES.length + 1;    // 알림 켜기(마지막)
+const ONBOARD_TOTAL = ONBOARD_SLIDES.length + 2;
+
 function onboardView() {
   const ob = state.onboard;
-  const last = ob.step >= ONBOARD_SLIDES.length;
-  const dots = Array.from({ length: ONBOARD_SLIDES.length + 1 }, (_, i) => `<span class="dot ${i === ob.step ? "active" : ""}"></span>`).join("");
-  const inner = last
-    ? `<div class="onboard-body">
+  const dots = Array.from({ length: ONBOARD_TOTAL }, (_, i) => `<span class="dot ${i === ob.step ? "active" : ""}"></span>`).join("");
+  let inner;
+  if (ob.step === ONBOARD_PUSH_STEP) {
+    // 마지막 — 알림 켜기 선택 (기본값은 꺼짐이라 여기서 권유). 켜면 폰 알림 권한을 요청한다.
+    inner = `<div class="onboard-body">
+        <div class="onboard-icon">${icon("bell", 40)}</div>
+        <div class="onboard-title">알림 켜기</div>
+        <div class="subtitle">친구의 새 응답·댓글·메시지를<br>폰 알림으로 바로 받아보세요.</div>
+      </div>
+      <div style="display:grid;gap:8px;width:100%">
+        <button class="btn" style="width:100%" data-action="onboard-enable-push">알림 켜기</button>
+        <button class="btn secondary" style="width:100%" data-action="onboard-done">나중에 할게요</button>
+      </div>`;
+  } else if (ob.step === ONBOARD_COLOR_STEP) {
+    inner = `<div class="onboard-body">
         <div class="onboard-title">프로필 색 고르기</div>
         <div class="subtitle">선택한 색이 내 기본 프로필 사진이 돼요.<br>언제든 프로필 수정에서 바꿀 수 있어요.</div>
         ${colorPicker("onboard", ob.color)}
       </div>
-      <button class="btn" style="width:100%" data-action="onboard-done">blur 시작하기</button>`
-    : `<div class="onboard-body">
+      <button class="btn" style="width:100%" data-action="onboard-next">다음</button>`;
+  } else {
+    inner = `<div class="onboard-body">
         <div class="onboard-icon">${icon(ONBOARD_SLIDES[ob.step].icon, 40)}</div>
         <div class="onboard-title">${ONBOARD_SLIDES[ob.step].title}</div>
         <div class="subtitle">${ONBOARD_SLIDES[ob.step].body}</div>
       </div>
       <button class="btn" style="width:100%" data-action="onboard-next">다음</button>`;
+  }
   return `<section class="overlay onboard">
     <div class="onboard-card">
       ${inner}
@@ -1565,8 +1583,7 @@ function settingsView() {
       <div>
         <div class="section-title">앱</div>
         <div style="display:grid;gap:8px">
-          <div class="setting-row"><div><div class="person-name">알림</div><div class="person-id">친구 요청과 댓글 알림</div></div><button class="toggle ${state.notif ? "on" : ""}" data-action="toggle-setting" data-key="notif"></button></div>
-          <div class="setting-row"><div><div class="person-name">잠금화면 알림</div><div class="person-id">앱을 꺼놔도 새 소식이 폰 알림으로 와요</div></div><button class="toggle ${state.push ? "on" : ""}" data-action="toggle-push"></button></div>
+          <div class="setting-row"><div><div class="person-name">알림</div><div class="person-id">새 소식이 폰 알림으로 와요</div></div><button class="toggle ${state.push ? "on" : ""}" data-action="toggle-push"></button></div>
           <div class="setting-row"><div><div class="person-name">공개 계정</div><div class="person-id">누구나 프로필과 지난 허브를 볼 수 있어요</div></div><button class="toggle ${state.myPublic ? "on" : ""}" data-action="toggle-setting" data-key="myPublic"></button></div>
         </div>
       </div>
@@ -2309,6 +2326,8 @@ function handleAction(action, el) {
     }
     case "onboard-next":
       return update((s) => { s.onboard.step += 1; });
+    case "onboard-enable-push":
+      return onboardEnablePush();
     case "onboard-done":
       return finishOnboard();
     case "pick-avatar":
@@ -2376,6 +2395,13 @@ async function completeSetup() {
     update((s) => { s.busy = ""; });
     toast(error.message || "계정을 준비하지 못했어요");
   }
+}
+
+// 온보딩 알림 단계 — 폰 알림 권한을 요청·구독하고 앱으로. 거부/미지원이어도 온보딩은 끝낸다.
+async function onboardEnablePush() {
+  const ok = await enablePush();
+  state.push = ok;
+  return finishOnboard();
 }
 
 // 온보딩 마지막 단계 — 고른 프로필 색을 저장하고 앱으로
