@@ -11,7 +11,7 @@ const avatarInput = document.querySelector("#avatar-input");
 // 허브 날짜는 매일 한국시간 오전 6시에 갱신 (backend.hubDateToday — KST 06:00 롤오버)
 const HUB_DATE = api.hubDateToday();
 const topicDate = `${HUB_DATE.slice(5, 7)}. ${HUB_DATE.slice(8, 10)}`;
-// 주제는 운영자가 미리 승인한 것만 서버에서 내려옴 (없으면 빈 값 = 게시 잠금)
+// 허브는 운영자가 미리 승인한 것만 서버에서 내려옴 (없으면 빈 값 = 게시 잠금)
 let topic = "";
 
 const gradients = [
@@ -821,10 +821,15 @@ function render() {
   afterRender();
 }
 
+// 로딩 화면 — 흐릿한 색 방울이 초점으로 서서히 맺혔다 풀리며(앱의 blur 해제 은유),
+// 그 위에 유리 디스크가 떠 있는 리퀴드 글라스. 스피너 대신 blur다운 미감.
 function loadingView() {
-  return `<section class="screen" style="justify-content:center;align-items:center;display:flex;flex-direction:column;gap:14px">
-    <div class="spinner"></div>
-    <div class="brand logo" style="font-size:26px">blur</div>
+  return `<section class="screen load-scene">
+    <div class="load-stage">
+      <div class="load-orb"></div>
+      <div class="load-glass"></div>
+    </div>
+    <div class="load-word brand logo">blur</div>
   </section>`;
 }
 
@@ -966,7 +971,7 @@ function homeView() {
         : `<button class="circ yellow icon-btn plus" aria-label="사진 올리기" data-action="quick-upload">${icon("plus", 19)}</button>`}
       ${bellButton()}
     </div>
-    <div class="h-big"><div class="topic-callout">${topic ? escapeHtml(topic) : `<span style="color:var(--muted)">주제를 준비하고 있어요</span>`}</div></div>
+    <div class="h-big"><div class="topic-callout">${topic ? escapeHtml(topic) : `<span style="color:var(--muted)">허브를 준비하고 있어요</span>`}</div></div>
     ${posts.length ? `<div class="home-carousel" data-carousel>
       ${posts.map((post) => {
         const person = personById(post.authorId);
@@ -1028,7 +1033,7 @@ function allView() {
       ${bellButton()}
     </div>
     <div class="page-title">전체</div>
-    <div class="topic-sub">${topic ? escapeHtml(topic) : "오늘의 주제를 준비하고 있어요"}</div>
+    <div class="topic-sub">${topic ? escapeHtml(topic) : "오늘의 허브를 준비하고 있어요"}</div>
     <div class="screen-scroll">
       <div class="masonry">
         <div class="masonry-col">${colA.map(card).join("")}</div>
@@ -1271,7 +1276,7 @@ function myView() {
   </section>`;
 }
 
-// 룸 사진 탭 → 확대 뷰(날짜+허브 주제), 다시 탭하면 원래대로 (베타 피드백 10)
+// 프로필 사진 탭 → 확대 뷰(날짜+허브), 다시 탭하면 원래대로 (베타 피드백 10)
 function gridTile(post) {
   const isToday = post.hubDate === HUB_DATE;
   const displayPost = { ...post, ratio: "1 / 1" };
@@ -1291,7 +1296,7 @@ function tabbar() {
     ["all", "전체", "grid"],
     ["chat", "대화", "message"],
     ["friends", "친구", "cloud"],
-    ["my", "룸", "user"]
+    ["my", "프로필", "user"]
   ];
   const unread = unreadDmCount();
   return `<nav class="tabbar" aria-label="주 메뉴">
@@ -1365,7 +1370,7 @@ function dmDeleteSheet() {
 }
 
 const ONBOARD_SLIDES = [
-  { icon: "sun", title: "매일 오전 6시, 새로운 주제", body: "24시간마다 주제가 바뀌어요 — 갱신은 매일 오전 6시.<br>오늘의 주제에 하루 한 번 응답해 보세요." },
+  { icon: "sun", title: "매일 오전 6시, 새로운 허브", body: "24시간마다 허브가 바뀌어요 — 갱신은 매일 오전 6시.<br>오늘의 허브에 하루 한 번 응답해 보세요." },
   { icon: "camera", title: "사진 한 장, 혹은 5초 동영상", body: "오늘을 담은 사진이나 5초 이하 동영상으로 응답해요.<br>아트 필터로 나만의 질감도 입힐 수 있어요." },
   { icon: "cloud", title: "탭하면 선명해져요", body: "친구의 응답은 흐릿하게 도착해요.<br>탭해서 blur를 풀고 선명하게 감상하세요." }
 ];
@@ -1519,8 +1524,8 @@ function uploadCaption() {
       <button class="toggle ${up.shareAll ? "on" : ""}" data-action="toggle-upload" data-key="shareAll" aria-label="모두에도 공개"></button>
     </div>
     <div class="setting-row">
-      <div><div class="person-name">내 룸에 저장</div><div class="person-id">허브가 닫혀도 내 아카이브에 남아요</div></div>
-      <button class="toggle ${up.saveRoom ? "on" : ""}" data-action="toggle-upload" data-key="saveRoom" aria-label="내 룸에 저장"></button>
+      <div><div class="person-name">내 프로필에 저장</div><div class="person-id">허브가 닫혀도 내 아카이브에 남아요</div></div>
+      <button class="toggle ${up.saveRoom ? "on" : ""}" data-action="toggle-upload" data-key="saveRoom" aria-label="내 프로필에 저장"></button>
     </div>
     <button class="btn" data-action="publish">오늘의 허브에 올리기</button>
   </div>`;
@@ -1648,7 +1653,7 @@ function settingsView() {
       <div>
         <div class="section-title">보관함</div>
         <div style="display:grid;gap:8px">
-          <button class="setting-row" style="text-align:left;cursor:pointer" data-action="open-archive"><div><div class="person-name">보관</div><div class="person-id">룸에서 삭제한 허브 사진 보기·영구 삭제</div></div><span style="color:var(--faint);display:inline-flex">${icon("chevron", 15)}</span></button>
+          <button class="setting-row" style="text-align:left;cursor:pointer" data-action="open-archive"><div><div class="person-name">보관</div><div class="person-id">프로필에서 삭제한 허브 사진 보기·영구 삭제</div></div><span style="color:var(--faint);display:inline-flex">${icon("chevron", 15)}</span></button>
         </div>
       </div>
       <div>
@@ -1660,8 +1665,9 @@ function settingsView() {
         </div>
       </div>
       <div>
-        <div class="section-title">약관·정책</div>
+        <div class="section-title">지원·정책</div>
         <div style="display:grid;gap:8px">
+          <a class="setting-row" style="text-decoration:none;cursor:pointer" href="./legal/support.html" target="_blank" rel="noopener"><div><div class="person-name">고객지원·도움말</div></div><span style="color:var(--faint);display:inline-flex">${icon("chevron", 15)}</span></a>
           <a class="setting-row" style="text-decoration:none;cursor:pointer" href="./legal/terms.html" target="_blank" rel="noopener"><div><div class="person-name">이용약관</div></div><span style="color:var(--faint);display:inline-flex">${icon("chevron", 15)}</span></a>
           <a class="setting-row" style="text-decoration:none;cursor:pointer" href="./legal/privacy.html" target="_blank" rel="noopener"><div><div class="person-name">개인정보 처리방침</div></div><span style="color:var(--faint);display:inline-flex">${icon("chevron", 15)}</span></a>
         </div>
@@ -1813,7 +1819,7 @@ function leaveView() {
   </section>`;
 }
 
-// 룸 사진 확대 뷰 — 사진 아래 날짜·허브 주제, 사진(화면)을 다시 탭하면 닫힘 (베타 피드백 10)
+// 프로필 사진 확대 뷰 — 사진 아래 날짜·허브, 사진(화면)을 다시 탭하면 닫힘 (베타 피드백 10)
 function viewerView() {
   const post = state.posts.find((p) => p.id === state.overlays.viewerPost) || { id: "viewer", authorId: "me", hubDate: HUB_DATE, ratio: "4 / 5", split: 1, grad: gradients[0], label: "sample" };
   const dateLabel = `${post.hubDate.slice(5, 7)}. ${post.hubDate.slice(8, 10)}`;
@@ -1826,13 +1832,13 @@ function viewerView() {
         <div class="viewer-date">${escapeHtml(dateLabel)} 허브</div>
         <div class="viewer-topic">${escapeHtml(hubTopic)}</div>
       </div>
-      ${mine && !post.archived ? `<button class="btn secondary viewer-archive" data-action="archive-post" data-post="${post.id}">${icon("trash", 15)}<span style="margin-left:7px">룸에서 삭제 (보관으로 이동)</span></button>` : ""}
+      ${mine && !post.archived ? `<button class="btn secondary viewer-archive" data-action="archive-post" data-post="${post.id}">${icon("trash", 15)}<span style="margin-left:7px">프로필에서 삭제 (보관으로 이동)</span></button>` : ""}
       ${!mine ? `<button class="text-link" style="color:var(--danger)" data-action="open-report" data-type="post" data-target="${post.id}">${icon("flag", 13)}<span style="margin-left:6px">게시물 신고</span></button>` : ""}
     </div>
   </section>`;
 }
 
-// 설정 > 보관 — 룸에서 삭제한 사진 열람·복원·영구 삭제 (베타 피드백 6)
+// 설정 > 보관 — 프로필에서 삭제한 사진 열람·복원·영구 삭제 (베타 피드백 6)
 function archiveView() {
   const archived = state.posts.filter((post) => post.authorId === "me" && post.archived);
   return `<section class="overlay">
@@ -1841,7 +1847,7 @@ function archiveView() {
       <div class="overlay-title">보관</div>
       <div style="width:36px"></div>
     </div>
-    <div class="hint" style="padding:10px 26px 0;text-align:center">룸에서 삭제한 사진이에요. 나에게만 보이고, 여기서 영구 삭제할 수 있어요.</div>
+    <div class="hint" style="padding:10px 26px 0;text-align:center">프로필에서 삭제한 사진이에요. 나에게만 보이고, 여기서 영구 삭제할 수 있어요.</div>
     <div class="screen-scroll" style="padding-top:16px">
       ${archived.length ? `<div class="photo-grid">${archived.map((post) => `
         <div style="position:relative">
@@ -2206,11 +2212,11 @@ function handleAction(action, el) {
     case "tab":
       return update((s) => { s.tab = el.dataset.tab; });
     case "open-upload":
-      if (!topic) return toast("오늘의 주제가 아직 공개되지 않았어요");
+      if (!topic) return toast("오늘의 허브가 아직 공개되지 않았어요");
       return update((s) => { s.upload = { ...blankUpload(), open: true }; });
     case "quick-upload":
       // 홈 상단 + 버튼 — 바로 앨범에서 사진 선택, 고르면 편집 단계로 진입
-      if (!topic) return toast("오늘의 주제가 아직 공개되지 않았어요");
+      if (!topic) return toast("오늘의 허브가 아직 공개되지 않았어요");
       state.upload = blankUpload();
       return albumInput.click();
     case "bg-reset":
@@ -3031,7 +3037,7 @@ async function deleteComment(commentId, postId) {
   }
 }
 
-// 룸에서 삭제 → 보관으로 이동 / 보관에서 복원 (베타 피드백 6)
+// 프로필에서 삭제 → 보관으로 이동 / 보관에서 복원 (베타 피드백 6)
 async function setPostArchived(postId, archived) {
   try {
     await api.updatePost(postId, { archived });
@@ -3040,7 +3046,7 @@ async function setPostArchived(postId, archived) {
       if (post) post.archived = archived;
       s.overlays.viewerPost = "";
     });
-    toast(archived ? "보관으로 옮겼어요 — 설정 > 보관에서 볼 수 있어요" : "룸으로 복원했어요");
+    toast(archived ? "보관으로 옮겼어요 — 설정 > 보관에서 볼 수 있어요" : "프로필로 복원했어요");
   } catch (error) {
     toast(error.message || "처리하지 못했어요");
   }

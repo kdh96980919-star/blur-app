@@ -122,6 +122,17 @@ button:focus {
   box-shadow: 0 30px 60px rgba(151, 134, 189, .22), 0 4px 10px rgba(56, 51, 63, .08);
 }
 
+/* 홈 화면에 설치한 앱(standalone)에선 폰 목업 프레임을 걷어내고 화면을 위·아래
+   가장자리까지 꽉 채운다. 데스크톱 브라우저 프리뷰는 위 목업 프레임을 그대로 유지. */
+@media (display-mode: standalone) {
+  .phone {
+    width: 100vw;
+    height: 100dvh;
+    max-height: none;
+    box-shadow: none;
+  }
+}
+
 .screen {
   position: absolute;
   inset: 0;
@@ -1629,7 +1640,6 @@ button.room-bio-empty {
   height: 7px;
   border-radius: 50%;
   background: var(--yellow-deep);
-  box-shadow: 0 0 0 2px #fff;
 }
 
 .chip-row {
@@ -1977,6 +1987,73 @@ input.bg-swatch {
   border-top-color: var(--ink);
   border-radius: 50%;
   animation: spin .8s linear infinite;
+}
+
+/* ── 로딩 화면 (리퀴드 글라스) ── */
+.load-scene {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 30px;
+}
+
+.load-stage {
+  position: relative;
+  width: 148px;
+  height: 148px;
+  display: grid;
+  place-items: center;
+}
+
+/* 흐릿한 색 방울 — 스카이·민트가 초점으로 맺혔다 다시 풀린다(blur 해제 은유) */
+.load-orb {
+  position: absolute;
+  width: 112px;
+  height: 112px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 32%, var(--bg-c1) 0%, var(--bg-c2) 68%, transparent 100%);
+  animation: orbBreathe 2.8s ease-in-out infinite;
+  will-change: transform, filter, opacity;
+}
+
+/* 그 위에 떠 있는 유리 디스크 */
+.load-glass {
+  position: absolute;
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .16);
+  backdrop-filter: blur(7px) saturate(160%);
+  -webkit-backdrop-filter: blur(7px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, .55);
+  box-shadow:
+    inset 0 1px 8px rgba(255, 255, 255, .7),
+    inset 0 -6px 14px rgba(108, 200, 247, .18),
+    0 10px 28px rgba(108, 200, 247, .22);
+  animation: glassFloat 2.8s ease-in-out infinite;
+  will-change: transform;
+}
+
+.load-word {
+  font-size: 24px;
+  letter-spacing: .04em;
+  animation: wordPulse 2.8s ease-in-out infinite;
+}
+
+@keyframes orbBreathe {
+  0%, 100% { transform: scale(.84); filter: blur(19px); opacity: .68; }
+  50%      { transform: scale(1.06); filter: blur(8px);  opacity: 1; }
+}
+
+@keyframes glassFloat {
+  0%, 100% { transform: translateY(3px) scale(.97); }
+  50%      { transform: translateY(-3px) scale(1.03); }
+}
+
+@keyframes wordPulse {
+  0%, 100% { opacity: .45; }
+  50%      { opacity: .95; }
 }
 
 /* 사진 감상 — 밝은 유리 배경 위에서 사진만 커진다 */

@@ -74,10 +74,10 @@ blur에서 천천히 만나요.
 ## 6. URL·기타 필드
 | 필드 | 값 | 상태 |
 |---|---|---|
-| 지원 URL (Support URL) | (미정 — invite 랜딩 or 전용 문의 페이지) | ⏳ |
+| 지원 URL (Support URL) | https://kdh96980919-star.github.io/blur-app/legal/support.html | ✅ 제작(2026-07-20, `legal/support.html` — 문의 이메일+FAQ 8종). ⏳ 배포 필요 |
 | 마케팅 URL | https://kdh96980919-star.github.io/blur-app/ | 재사용 가능 |
 | 개인정보처리방침 URL | .../blur-app/legal/privacy.html | ✅ 있음 |
-| 저작권 (Copyright) | `2026 Kim Donghyun` (표기명 확정 필요) | ⏳ |
+| 저작권 (Copyright) | `Gabriel Kim` (연도 없이 — 김 결정) | ✅ 확정(2026-07-20) |
 | Primary 카테고리 | Social Networking | 제안 |
 | Secondary 카테고리 | Photo & Video | 제안 |
 
@@ -88,8 +88,10 @@ blur에서 천천히 만나요.
 
 ---
 
-## 확정 필요 (김 결정)
-1. **앱 이름** A/B/C
-2. **부제** A/B/C
-3. **저작권 표기명** — 실명 "Kim Donghyun"? 다른 표기?
-4. **지원 URL** — 별도 문의 페이지를 만들까, invite 랜딩을 재사용할까
+## 확정 상태
+1. **앱 이름** = `blur` ✅
+2. **부제** = `오늘을 선명하게` ✅
+3. **저작권 표기명** = `Gabriel Kim` ✅ (연도 없이)
+4. **지원 URL** = 전용 페이지 `legal/support.html` 제작 ✅ + 앱 설정에 '고객지원·도움말' 링크 추가 ✅
+
+→ 텍스트 메타데이터 필드 전부 확정. 남은 건 스크린샷(Expo 빌드 후)뿐.
