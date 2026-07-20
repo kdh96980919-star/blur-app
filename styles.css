@@ -468,15 +468,17 @@ button:focus {
   z-index: 60;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  max-width: calc(100% - 28px);
+  width: max-content;
+  max-width: calc(100% - 24px);
   padding: 8px 14px;
   border-radius: 999px;
-  background: rgba(56, 51, 63, .9);
+  background: rgba(56, 51, 63, .92);
   color: #fff;
   font-size: 12px;
-  line-height: 1;
-  white-space: nowrap;
+  line-height: 1.35;
+  text-align: center;
   box-shadow: var(--lift-sm);
   animation: riseIn .28s ease both;
 }

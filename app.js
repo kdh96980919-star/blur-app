@@ -352,6 +352,14 @@ async function boot() {
       history.replaceState(null, "", location.pathname);
     }
     if (!session) {
+      // 오프라인이면 세션 갱신이 실패해 null이 올 수 있다 — 웰컴(로그인 불가) 대신 오프라인 화면
+      if (navigator.onLine === false) {
+        state = defaultState();
+        state.auth = "offline";
+        state.offline = true;
+        render();
+        return;
+      }
       state = defaultState();
       state.auth = "welcome";
       render();
@@ -836,7 +844,7 @@ function offlineView() {
 // 앱을 쓰는 도중 연결이 끊기면 위에 얇게 걸리는 안내 배너 (연결되면 자동으로 사라짐)
 function offlineBanner() {
   if (!state.offline || state.auth !== "app") return "";
-  return `<div class="offline-banner">${icon("wifi-off", 13)}<span>오프라인 · 연결되면 자동으로 새로고침돼요</span></div>`;
+  return `<div class="offline-banner">${icon("wifi-off", 13)}<span>오프라인 · 자동으로 다시 연결돼요</span></div>`;
 }
 
 function welcomeView() {
