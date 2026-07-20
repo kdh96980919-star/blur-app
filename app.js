@@ -3450,3 +3450,25 @@ window.addEventListener("online", () => {
 
 render();
 boot();
+
+// ⚠️ TEMP 진단 오버레이 — 디바이스 뷰포트/폰높이/탭바 위치 실측 (진단 후 제거 예정)
+(function debugViewport() {
+  const box = document.createElement("div");
+  box.style.cssText = "position:fixed;top:0;left:0;z-index:99999;background:rgba(0,0,0,.82);color:#5f5;font:11px/1.35 monospace;padding:5px 7px;white-space:pre;pointer-events:none;border-bottom-right-radius:8px";
+  document.body.appendChild(box);
+  const unit = (u) => { const e = document.createElement("div"); e.style.cssText = "position:fixed;left:-99px;width:1px;height:100" + u; document.body.appendChild(e); const h = e.getBoundingClientRect().height; e.remove(); return Math.round(h); };
+  const inset = (s) => { const e = document.createElement("div"); e.style.cssText = "position:fixed;left:-99px;width:1px;height:env(safe-area-inset-" + s + ",0px)"; document.body.appendChild(e); const h = e.getBoundingClientRect().height; e.remove(); return Math.round(h); };
+  (function tick() {
+    const p = document.querySelector(".phone");
+    const t = document.querySelector(".tabbar");
+    const pr = p ? p.getBoundingClientRect() : { width: 0, height: 0, top: 0, bottom: 0 };
+    const tr = t ? t.getBoundingClientRect() : null;
+    box.textContent =
+      "win " + innerWidth + "x" + innerHeight + " dpr" + devicePixelRatio + "\n" +
+      "svh" + unit("svh") + " dvh" + unit("dvh") + " lvh" + unit("lvh") + "\n" +
+      "safe T" + inset("top") + " B" + inset("bottom") + "\n" +
+      "phone " + Math.round(pr.width) + "x" + Math.round(pr.height) + " top" + Math.round(pr.top) + " bot" + Math.round(pr.bottom) + "\n" +
+      (tr ? "tab top" + Math.round(tr.top) + " bot" + Math.round(tr.bottom) + " belowGap" + Math.round(pr.bottom - tr.bottom) : "no tabbar");
+    requestAnimationFrame(tick);
+  })();
+})();
