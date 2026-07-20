@@ -1,4 +1,4 @@
-const CACHE_NAME = "blur-service-v18";
+const CACHE_NAME = "blur-service-v19";
 const ASSETS = [
   "./",
   "./index.html",
@@ -7,7 +7,10 @@ const ASSETS = [
   "./backend.js",
   "./config.js",
   "./manifest.webmanifest",
-  "./assets/icon.svg",
+  "./assets/favicon-32.png",
+  "./assets/icon-192.png",
+  "./assets/icon-512.png",
+  "./assets/icon-180.png",
   "./assets/blur1.jpg"
 ];
 
@@ -35,8 +38,8 @@ self.addEventListener("push", (event) => {
   const title = data.title ?? "blur";
   const options = {
     body: data.body || "",
-    icon: "./assets/icon.svg",
-    badge: "./assets/icon.svg",
+    icon: "./assets/icon-192.png",
+    badge: "./assets/icon-192.png",
     tag: data.tag || "blur-notif",
     data: { url: data.url || "./" }
   };
