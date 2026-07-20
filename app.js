@@ -950,10 +950,11 @@ function tabView() {
 // 화면 높이에 따라 사진 폭을 줄여 이름·댓글이 잘리지 않게 하는 카드 폭 계산 (베타 피드백 3)
 function cardWidth(ratio) {
   const ar = { "1 / 1": 1, "16 / 9": 16 / 9, "4 / 5": 0.8 }[ratio] || 0.8;
-  // 카드 크기는 화면 '폭' 기준(80vw + 비율별 상한)으로 정한다. 예전엔 세로(svh/dvh)
-  // 예산으로 정했는데, 사파리 툴바나 iOS 전체화면 안전영역으로 뷰포트 높이가
-  // 짧아지면 카드가 쪼그라들었다. 세로 조건은 짧은 화면에서 넘침만 막는 안전장치.
-  return `min(80vw, ${ratioWidth(ratio)}, calc((100dvh - 300px) * ${ar.toFixed(4)}))`;
+  // 사진이 화면 세로를 꽉 채우게 한다: 카드 폭 = (뷰포트높이 - 고정크롬 - 안전영역) × 비율.
+  // .media-frame이 aspect-ratio로 높이를 정하므로, 이렇게 두면 사진 높이가 정확히
+  // 남는 세로 공간과 같아진다(크롬 335px = 상단바+허브+캡션+탭바+여백 합산).
+  // 폭 상한(90vw)은 세로로 긴 화면에서 사진이 좌우로 넘치는 것만 막는다.
+  return `min(90vw, calc((100dvh - 335px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) * ${ar.toFixed(4)}))`;
 }
 
 function bellButton() {
