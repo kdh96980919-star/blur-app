@@ -139,7 +139,8 @@ function defaultState() {
     },
     leave: { open: false, reason: "", agree: false, confirm: false, done: false },
     toast: "",
-    busy: ""
+    busy: "",
+    offline: typeof navigator !== "undefined" && navigator.onLine === false
   };
 }
 
@@ -370,6 +371,15 @@ async function boot() {
     render();
     startLive();
   } catch (error) {
+    // 연결이 없어 데이터를 못 받은 경우 — 웰컴으로 튕기지 않고 오프라인 화면을 보여준다.
+    // (세션은 로컬에 있어 getSession은 통과하고, loadAll의 서버 요청만 실패하는 상황)
+    if (navigator.onLine === false) {
+      state = defaultState();
+      state.auth = "offline";
+      state.offline = true;
+      render();
+      return;
+    }
     state = defaultState();
     state.auth = "welcome";
     render();
@@ -621,6 +631,7 @@ function icon(name, size = 23) {
     users: `<svg ${common}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>`,
     heart: `<svg ${common}><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z"></path></svg>`,
     cloud: `<svg ${common}><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"></path></svg>`,
+    "wifi-off": `<svg ${common}><path d="M1 1l22 22"></path><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"></path><path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"></path><path d="M10.71 5.05A16 16 0 0 1 22.58 9"></path><path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><path d="M12 20h.01"></path></svg>`,
     user: `<svg ${common}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`,
     camera: `<svg ${common}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>`,
     image: `<svg ${common}><rect x="3" y="3" width="18" height="18" rx="3"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><path d="M21 15l-5-5L5 21"></path></svg>`,
@@ -769,12 +780,14 @@ function render() {
   lastOvSig = ovSig;
   const content = state.auth === "loading"
     ? loadingView()
-    : state.auth === "welcome"
-      ? welcomeView()
-      : state.auth === "setup"
-        ? setupView()
-        : appView();
-  app.innerHTML = `<div class="phone${mainSame ? " no-anim-main" : ""}${ovSame ? " no-anim-ov" : ""}">${content}${busyView()}${toastView()}</div>`;
+    : state.auth === "offline"
+      ? offlineView()
+      : state.auth === "welcome"
+        ? welcomeView()
+        : state.auth === "setup"
+          ? setupView()
+          : appView();
+  app.innerHTML = `<div class="phone${mainSame ? " no-anim-main" : ""}${ovSame ? " no-anim-ov" : ""}">${content}${offlineBanner()}${busyView()}${toastView()}</div>`;
   if (mainSame) {
     [...app.querySelectorAll(".screen-scroll")].forEach((el, i) => {
       if (scrolls[i]) el.scrollTop = scrolls[i];
@@ -805,6 +818,25 @@ function loadingView() {
     <div class="spinner"></div>
     <div class="brand logo" style="font-size:26px">blur</div>
   </section>`;
+}
+
+// 오프라인 전용 화면 — 로그인 상태로 앱을 열었는데 연결이 없어 데이터를 못 받을 때.
+// 앱 껍데기(HTML/CSS/JS)는 서비스 워커 캐시로 뜨므로 이 화면까지는 항상 보인다.
+function offlineView() {
+  return `<section class="screen offline-screen">
+    <div class="offline-box">
+      <div class="offline-icon">${icon("wifi-off", 30)}</div>
+      <h2 class="offline-title">인터넷 연결이 없어요</h2>
+      <p class="offline-sub">연결 상태를 확인하고<br>다시 시도해 주세요.</p>
+      <button class="btn" style="min-width:150px" data-action="retry-boot">다시 시도</button>
+    </div>
+  </section>`;
+}
+
+// 앱을 쓰는 도중 연결이 끊기면 위에 얇게 걸리는 안내 배너 (연결되면 자동으로 사라짐)
+function offlineBanner() {
+  if (!state.offline || state.auth !== "app") return "";
+  return `<div class="offline-banner">${icon("wifi-off", 13)}<span>오프라인 · 연결되면 자동으로 새로고침돼요</span></div>`;
 }
 
 function welcomeView() {
@@ -2366,6 +2398,10 @@ function handleAction(action, el) {
       return state = defaultState(), state.auth = "welcome", render();
     case "close-viewer":
       return update((s) => { s.overlays.viewerPost = ""; });
+    case "retry-boot":
+      state.auth = "loading";
+      render();
+      return boot();
     default:
       return undefined;
   }
@@ -3377,6 +3413,23 @@ avatarInput.addEventListener("change", async () => {
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("./sw.js").catch(() => {});
 }
+
+// 네트워크 상태 변화 대응 — 끊기면 배너/오프라인 화면, 복구되면 자동으로 데이터를 다시 받는다
+window.addEventListener("offline", () => {
+  state.offline = true;
+  if (state.auth === "app") render();
+});
+window.addEventListener("online", () => {
+  state.offline = false;
+  if (state.auth === "offline") {
+    state.auth = "loading";
+    render();
+    boot();
+  } else if (state.auth === "app") {
+    render();
+    refreshData();
+  }
+});
 
 render();
 boot();

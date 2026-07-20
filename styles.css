@@ -421,6 +421,67 @@ button:focus {
   color: #fff;
 }
 
+/* 오프라인 전용 화면 (로그인 상태로 열었으나 연결이 없을 때) */
+.offline-screen {
+  justify-content: center;
+  align-items: center;
+  padding: 0 34px;
+}
+.offline-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+}
+.offline-icon {
+  width: 66px;
+  height: 66px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: var(--ink);
+  background: var(--glass-strong);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .8), var(--lift-sm);
+}
+.offline-title {
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.offline-sub {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--muted);
+  margin: -6px 0 4px;
+}
+
+/* 앱 사용 중 연결이 끊겼을 때 위에 걸리는 얇은 배너 */
+.offline-banner {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: calc(100% - 28px);
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(56, 51, 63, .9);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: var(--lift-sm);
+  animation: riseIn .28s ease both;
+}
+.offline-banner svg { flex: none; }
+
 .btn:disabled,
 .btn.disabled {
   background: rgba(255, 255, 255, .5);
