@@ -2031,37 +2031,25 @@ input.bg-swatch {
   flex: none;
 }
 
+/* 작업 중 오버레이 — 첫 로딩 화면과 같은 장면(.load-scene)을 그대로 덮어씌운다.
+   배경도 앱의 시그니처 그라데이션이라 로딩 화면과 구분이 가지 않는다. */
 .busy {
   position: absolute;
   inset: 0;
   z-index: 190;
-  display: grid;
-  place-items: center;
-  background: rgba(252, 251, 255, .72);
-  backdrop-filter: blur(8px);
+  background: var(--scene);
 }
 
-.busy-card {
-  display: grid;
-  gap: 12px;
-  justify-items: center;
-  padding: 24px;
-  border-radius: var(--r-tile);
-  background: var(--glass-strong);
-  box-shadow: var(--lift), var(--hi);
-  color: var(--ink);
-  font-size: 13px;
-  font-weight: 500;
+/* 워드마크 자리에 들어가는 안내 문구 — 'blur'보다 길므로 조금 작고 줄바꿈 허용.
+   .load-word가 파일 뒤쪽에 있어 같은 특이도로는 지므로 선택자를 하나 더 붙인다. */
+.busy .busy-word {
+  max-width: 78%;
+  font-size: 17px;
+  font-weight: 600;
+  text-align: center;
+  line-height: 1.45;
 }
 
-.spinner {
-  width: 28px;
-  height: 28px;
-  border: 3px solid rgba(56, 51, 63, .1);
-  border-top-color: var(--ink);
-  border-radius: 50%;
-  animation: spin .8s linear infinite;
-}
 
 /* ── 로딩 화면 (리퀴드 글라스) ── */
 .load-scene {

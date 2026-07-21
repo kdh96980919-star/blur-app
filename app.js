@@ -47,7 +47,6 @@ function blankUpload() {
     selectedLabel: "",
     selectedGrad: "",
     ratio: "4 / 5",
-    srcRatio: "", // 고른 사진·영상의 실제 비율 ("원본" 칩의 값)
     zoom: 1,
     rot: 0,
     x: 0,
@@ -670,20 +669,6 @@ function ratioOf(w, h) {
   if (!(w > 0) || !(h > 0)) return "4 / 5";
   const ar = Math.min(2.5, Math.max(0.4, w / h));
   return `${Math.round(ar * 1000) / 1000} / 1`;
-}
-
-/* 자르기 칩 — '원본'이 맨 앞이자 기본. 원본이 프리셋과 사실상 같은 비율이면
-   같은 칩이 둘로 보이지 않게 그 프리셋은 뺀다(정사각 사진 = 1:1). */
-function ratioChoices(srcRatio) {
-  const presets = [["1 / 1", "1:1"], ["4 / 5", "4:5"], ["16 / 9", "16:9"]];
-  if (!srcRatio) return presets;
-  const [sw, sh] = parseRatio(srcRatio);
-  const src = sw / sh;
-  const same = ([value]) => {
-    const [w, h] = parseRatio(value);
-    return Math.abs(w / h - src) < 0.01;
-  };
-  return [[srcRatio, "원본"], ...presets.filter((p) => !same(p))];
 }
 
 /* 홈 카드 폭 — 사진 비율을 지키면서 화면 안에 들어가게 하는 유일한 방법은,
@@ -1545,10 +1530,6 @@ function uploadEdit() {
       <div class="hint" style="margin-top:4px">사진을 드래그해 위치를 옮기고, 두 손가락으로 확대할 수 있어요</div>
     </div>` : ""}
     <div>
-      <div class="section-title">자르기</div>
-      <div class="chip-row">${chips("ratio", ratioChoices(up.srcRatio))}</div>
-    </div>
-    <div>
       <div class="section-title">필터</div>
       <div class="chip-row">${chips("filter", [["none", "원본"], ["grain", "그레인 블러"], ["glass", "리퀴드 글라스"], ["halftone", "하프톤"], ["naive", "나이브"], ["data", "데이터"]])}</div>
     </div>
@@ -2108,13 +2089,17 @@ function chatRoomView() {
   </section>`;
 }
 
+/* 작업 중 화면 — 앱을 처음 열 때의 로딩 화면(loadingView)과 같은 리퀴드 글라스를
+   그대로 쓴다. 예전엔 여기만 스피너 카드여서, 사진을 올리는 중에 전혀 다른
+   로딩 화면으로 바뀌어 보였다. 워드마크 자리에 무슨 작업 중인지가 들어간다. */
 function busyView() {
   if (!state.busy) return "";
-  return `<div class="busy">
-    <div class="busy-card">
-      <div class="spinner"></div>
-      <div>${escapeHtml(state.busy)}</div>
+  return `<div class="busy load-scene">
+    <div class="load-stage">
+      <div class="load-orb"></div>
+      <div class="load-glass"></div>
     </div>
+    <div class="load-word busy-word">${escapeHtml(state.busy)}</div>
   </div>`;
 }
 
@@ -3311,7 +3296,6 @@ async function handlePickedPhoto(input, label) {
       s.upload.selectedImage = dataUrl;
       s.upload.selectedVideo = "";
       s.upload.videoDuration = 0;
-      s.upload.srcRatio = srcRatio;
       s.upload.ratio = srcRatio;
       s.upload.selectedGrad = gradients[0];
       s.upload.selectedLabel = label;
@@ -3365,8 +3349,7 @@ async function handlePickedVideo(input, file, label) {
       s.upload.selectedImage = poster;
       s.upload.selectedVideo = url;
       s.upload.videoDuration = Math.min(video.duration, MAX_VIDEO_SEC);
-      s.upload.srcRatio = ratioOf(video.videoWidth, video.videoHeight);
-      s.upload.ratio = s.upload.srcRatio;
+      s.upload.ratio = ratioOf(video.videoWidth, video.videoHeight);
       s.upload.selectedGrad = gradients[0];
       s.upload.selectedLabel = label;
       s.upload.filter = "none";
