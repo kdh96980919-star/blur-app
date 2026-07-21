@@ -686,6 +686,24 @@ function ratioChoices(srcRatio) {
   return [[srcRatio, "원본"], ...presets.filter((p) => !same(p))];
 }
 
+/* 홈 카드 폭 — 사진 비율을 지키면서 화면 안에 들어가게 하는 유일한 방법은,
+   가로 기준과 세로 기준 중 작은 쪽을 고르는 것이다. aspect-ratio만으로는
+   두 축을 동시에 제약할 수 없다(한 축이 definite면 다른 축의 클램프가 비율로
+   전달되지 않는다).
+     · 가로 기준 = 86vw
+     · 세로 기준 = (앱 높이 − 사진 위아래 UI) × 비율
+   HOME_CHROME은 홈에서 사진이 쓸 수 없는 세로 공간의 합(상단바·허브 알약·
+   캐러셀 패딩·이름/댓글 줄·캡션·인디케이터·탭바). 안전영역은 기기마다 달라
+   env()로 따로 뺀다. */
+const HOME_CHROME = 364;
+
+function cardWidth(ratio) {
+  const [w, h] = parseRatio(ratio);
+  const ar = (w / h).toFixed(4);
+  const avail = `calc(var(--stage-h) - ${HOME_CHROME}px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))`;
+  return `min(86vw, calc(${avail} * ${ar}))`;
+}
+
 // 업로드 프리뷰 폭 — 어떤 비율이든 세로가 380px을 넘지 않게 폭을 잡는다
 function ratioWidth(ratio) {
   const [w, h] = parseRatio(ratio);
@@ -1004,7 +1022,7 @@ function homeView() {
         const person = personById(post.authorId);
         const mine = post.authorId === "me";
         const count = (post.comments || []).length;
-        return `<article class="home-slide">
+        return `<article class="home-slide" style="width:${cardWidth(post.ratio)}">
           <div class="post-card">
             ${mediaFrame(post, "large", { person })}
             <div class="post-meta">
