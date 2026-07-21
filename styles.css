@@ -814,6 +814,21 @@ button:focus {
   transform: scale(1.02);
 }
 
+/* 사진을 '감상하는' 자리 — 전체 탭과 확대 뷰에서는 사진을 절대 자르지 않는다.
+   프레임 비율은 게시물에 저장된 비율이라 보통 사진과 정확히 맞지만, 어긋나더라도
+   contain이라 잘리는 대신 프레임이 여백을 갖는다. 선명해진 뒤의 2% 확대도 없앤다
+   (블러 상태의 1.08 확대는 유지 — blur가 가장자리를 투명하게 번지게 하므로 필요).
+   홈은 화면을 꽉 채워야 해서 지금처럼 cover로 크롭한다. */
+.masonry .media-img,
+.viewer .media-img {
+  object-fit: contain;
+}
+
+.masonry .revealed .media-img,
+.viewer .revealed .media-img {
+  transform: scale(1);
+}
+
 .media-overlay {
   position: absolute;
   inset: 0;
