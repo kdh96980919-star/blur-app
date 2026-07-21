@@ -123,11 +123,22 @@ button:focus {
 }
 
 /* 홈 화면에 설치한 앱(standalone)에선 폰 목업 프레임을 걷어내고 화면을 위·아래
-   가장자리까지 꽉 채운다. 데스크톱 브라우저 프리뷰는 위 목업 프레임을 그대로 유지. */
+   가장자리까지 꽉 채운다. 데스크톱 브라우저 프리뷰는 위 목업 프레임을 그대로 유지.
+
+   ⚠️ 여기서 dvh를 쓰면 안 된다. status-bar-style이 black-translucent라 앱은 상태바
+   '밑까지' 그려지는데, iOS는 svh·dvh·innerHeight를 상단 안전영역만큼 뺀 값으로
+   준다. 아이폰 15 Pro 실측: 화면 852, svh=dvh=793, safe-top=59 (852-59=793),
+   lvh=852. 그래서 앱이 793만 그려지고 아래 59px이 통째로 빈 채로 남았다.
+   전체화면 PWA는 접혔다 펴지는 브라우저 UI가 아예 없으므로 '가장 큰 뷰포트'인
+   lvh가 원래 맞는 단위다. iOS가 나중에 dvh를 고쳐도 lvh는 852 그대로다. */
 @media (display-mode: standalone) {
+  #app {
+    min-height: 100lvh;
+  }
+
   .phone {
     width: 100vw;
-    height: 100dvh;
+    height: 100lvh;
     max-height: none;
     box-shadow: none;
   }
