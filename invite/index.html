@@ -275,6 +275,36 @@
     margin-top: 24px;
   }
 
+  /* 시작 전 안내 — 여기서 막히는 사람이 가장 많은 두 가지를 미리 짚어준다 */
+  .start-tips {
+    margin-top: 28px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    text-align: left;
+  }
+  .start-tips h3 {
+    font-size: 0.95rem;
+    margin-bottom: 14px;
+    color: var(--lavender);
+  }
+  .start-tips dl { display: grid; gap: 14px; }
+  .start-tips dt {
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 2px;
+  }
+  .start-tips dd {
+    font-size: 0.88rem;
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
+  .start-tips em {
+    font-style: normal;
+    color: var(--peach);
+    font-weight: 600;
+  }
+
   footer {
     border-top: 1px solid var(--border);
     padding: 24px 0 40px;
@@ -343,7 +373,7 @@
       </div>
       <div class="card">
         <h3>좋아요 없음</h3>
-        <p>숫자 경쟁 대신 댓글로 대화합니다. 몇 명이 내 오늘을 열어봤는지만 조용히 알려줍니다.</p>
+        <p>숫자 경쟁 대신 댓글로 대화합니다. 좋아요도, 팔로워 수도, 조회수도 없습니다.</p>
       </div>
     </div>
   </section>
@@ -352,7 +382,7 @@
     <h2>이렇게 씁니다</h2>
     <ol class="steps">
       <li><div><strong>오늘의 주제 확인</strong><span>앱을 열면 오늘 하루의 주제가 보입니다. 주제가 없는 날은 게시가 잠깁니다.</span></div></li>
-      <li><div><strong>사진 한 장 올리기</strong><span>사진 선택 → 자르기·필터 수정 → 마지막 확인, 3단계로 게시합니다.</span></div></li>
+      <li><div><strong>사진 한 장 올리기</strong><span>사진 또는 5초 이내 영상을 고르고 → 위치·크기·필터를 다듬고 → 한 줄 캡션을 적어 올립니다. 사진은 찍은 그대로, 잘리지 않고 올라갑니다.</span></div></li>
       <li><div><strong>친구의 오늘을 풀어보기</strong><span>흐리게 도착한 친구들의 사진을 탭해서 선명하게 풀고, 댓글로 이야기를 나눕니다.</span></div></li>
     </ol>
   </section>
@@ -361,8 +391,16 @@
     <h2>지금 베타에 있는 기능</h2>
     <div class="feature-grid">
       <div class="card">
-        <h3>4개의 탭</h3>
-        <p>오늘 · 전체 · 친구 · 룸. 룸 탭에서는 내 프로필과 함께 "N명이 내 오늘을 열어봤어요" 열람 통계를 보여줍니다.</p>
+        <h3>5개의 탭</h3>
+        <p>오늘 · 전체 · 대화 · 친구 · 프로필. 프로필 탭에는 내가 올린 사진이 차곡차곡 쌓입니다.</p>
+      </div>
+      <div class="card">
+        <h3>카카오 · 구글 로그인</h3>
+        <p>따로 만들 비밀번호가 없습니다. 카카오 또는 구글 계정으로 바로 시작하고, 이름과 아이디만 정하면 끝입니다.</p>
+      </div>
+      <div class="card">
+        <h3>대화와 알림</h3>
+        <p>친구와 1:1 메시지를 주고받고, 새 소식은 잠금화면 알림으로 받습니다.</p>
       </div>
       <div class="card">
         <h3>지인망 친구 관리</h3>
@@ -391,9 +429,20 @@
   <section>
     <div class="beta-box">
       <h2>지인 베타에 함께해 주세요</h2>
-      <p>지금은 아는 사람들끼리 써보며 다듬는 단계입니다.<br>가입하고, 오늘의 주제에 사진 한 장 올려보세요.</p>
+      <p>지금은 아는 사람들끼리 써보며 다듬는 단계입니다.<br>카카오나 구글로 시작하고, 오늘의 주제에 사진 한 장 올려보세요.</p>
       <a class="cta" href="https://kdh96980919-star.github.io/blur-app/" target="_blank" rel="noopener">blur 열어보기</a>
-      <p class="beta-note">모바일 브라우저 권장 · 홈 화면에 추가하면 앱처럼 사용 가능<br>베타 단계라 기능이 바뀌거나 일시적으로 불안정할 수 있습니다.</p>
+
+      <div class="start-tips">
+        <h3>시작할 때 두 가지만 확인해 주세요</h3>
+        <dl>
+          <dt>1. 카카오로 로그인한다면 <em>'이메일' 동의에 체크</em></dt>
+          <dd>선택 동의 항목이라 체크를 풀면 계정이 만들어지지 않습니다. 구글로 시작하면 해당 없습니다.</dd>
+          <dt>2. 아이폰이라면 <em>사파리에서 '홈 화면에 추가'</em></dt>
+          <dd>공유 버튼 → 홈 화면에 추가 → 추가된 아이콘으로 실행하세요. 이렇게 해야 화면이 꽉 차고, 알림도 받을 수 있습니다. 안드로이드는 브라우저에서 바로 알림이 옵니다.</dd>
+        </dl>
+      </div>
+
+      <p class="beta-note">모바일 브라우저 권장 · 앱스토어 설치 없이 바로 실행됩니다<br>베타 단계라 기능이 바뀌거나 일시적으로 불안정할 수 있습니다.</p>
     </div>
   </section>
 
@@ -402,7 +451,7 @@
 <footer>
   <div class="container">
     blur 1.0.0 베타 · <a href="https://kdh96980919-star.github.io/blur-app/" target="_blank" rel="noopener">kdh96980919-star.github.io/blur-app</a><br>
-    이 페이지는 2026-07-11 기준 베타에 실제로 구현된 기능만 소개합니다.
+    이 페이지는 2026-07-22 기준 베타에 실제로 구현된 기능만 소개합니다.
   </div>
 </footer>
 
