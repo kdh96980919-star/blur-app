@@ -3444,3 +3444,93 @@ window.addEventListener("online", () => {
 
 render();
 boot();
+
+/* ⚠️ TEMP 진단 오버레이 (하단 여백 원인 규명용 — 원인 확인 후 제거)
+   홈 상단 'blur' 워드마크를 1.5초 안에 3번 탭하면 켜지고, 다시 3번 탭하면 꺼진다.
+   뷰포트 단위(svh/dvh/lvh)와 레이아웃 체인의 각 요소 rect를 실측해, 남는 세로
+   공백이 정확히 어느 요소에서 생기는지 gap 값으로 보여준다. */
+(function debugViewport() {
+  let taps = [];
+  let box = null;
+  let raf = 0;
+
+  const probe = (css) => {
+    const e = document.createElement("div");
+    e.style.cssText = "position:fixed;left:-999px;top:0;width:1px;height:" + css;
+    document.body.appendChild(e);
+    const h = e.getBoundingClientRect().height;
+    e.remove();
+    return Math.round(h);
+  };
+
+  const row = (label, el) => {
+    if (!el) return label.padEnd(9) + "—\n";
+    const r = el.getBoundingClientRect();
+    return label.padEnd(9) + Math.round(r.top) + "→" + Math.round(r.bottom) +
+      " h" + Math.round(r.height) + "\n";
+  };
+
+  const tick = () => {
+    const q = (s) => document.querySelector(s);
+    const phone = q(".phone");
+    const tab = q(".tabbar");
+    const frame = q(".home-slide .media-frame");
+    const card = q(".home-slide .post-card");
+    const pr = phone && phone.getBoundingClientRect();
+    const tr = tab && tab.getBoundingClientRect();
+    const cr = card && card.getBoundingClientRect();
+    box.textContent =
+      "win " + innerWidth + "x" + innerHeight + " dpr" + devicePixelRatio + "\n" +
+      "vv  " + Math.round(visualViewport ? visualViewport.height : 0) +
+      " off" + Math.round(visualViewport ? visualViewport.offsetTop : 0) + "\n" +
+      "svh" + probe("100svh") + " dvh" + probe("100dvh") + " lvh" + probe("100lvh") + "\n" +
+      "safe T" + probe("env(safe-area-inset-top,0px)") +
+      " B" + probe("env(safe-area-inset-bottom,0px)") + "\n" +
+      "standalone " + (matchMedia("(display-mode: standalone)").matches ? "Y" : "N") +
+      "/" + (navigator.standalone ? "Y" : "N") + "\n" +
+      "─────────────\n" +
+      row("#app", q("#app")) +
+      row("phone", phone) +
+      row("screen", q(".screen")) +
+      row("topbar", q(".topbar")) +
+      row("body", q(".home-body")) +
+      row("h-big", q(".h-big")) +
+      row("carousel", q(".home-carousel")) +
+      row("slide", q(".home-slide")) +
+      row("card", card) +
+      row("frame", frame) +
+      row("meta", q(".home-slide .post-meta")) +
+      row("dots", q(".home-body .dots")) +
+      row("tabbar", tab) +
+      "─────────────\n" +
+      (cr && tr ? "card→tab  " + Math.round(tr.top - cr.bottom) + "\n" : "") +
+      (pr && tr ? "tab→phone " + Math.round(pr.bottom - tr.bottom) + "\n" : "") +
+      (pr ? "phone→win " + Math.round(innerHeight - pr.bottom) : "");
+    raf = requestAnimationFrame(tick);
+  };
+
+  const toggle = () => {
+    if (box) {
+      cancelAnimationFrame(raf);
+      box.remove();
+      box = null;
+      return;
+    }
+    box = document.createElement("div");
+    box.style.cssText = "position:fixed;top:0;left:0;z-index:99999;background:rgba(0,0,0,.86);" +
+      "color:#6f6;font:10px/1.3 ui-monospace,monospace;padding:6px 8px;white-space:pre;" +
+      "pointer-events:none;border-bottom-right-radius:8px";
+    document.body.appendChild(box);
+    tick();
+  };
+
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".wordmark")) return;
+    const now = Date.now();
+    taps = taps.filter((t) => now - t < 1500).concat(now);
+    if (taps.length >= 3) {
+      taps = [];
+      toggle();
+    }
+  });
+})();
