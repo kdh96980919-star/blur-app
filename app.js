@@ -47,6 +47,7 @@ function blankUpload() {
     selectedLabel: "",
     selectedGrad: "",
     ratio: "4 / 5",
+    srcRatio: "", // 고른 사진·영상의 실제 비율 ("원본" 칩의 값)
     zoom: 1,
     rot: 0,
     x: 0,
@@ -655,10 +656,40 @@ function icon(name, size = 23) {
   return icons[name] || "";
 }
 
+/* "16 / 9" 같은 비율 문자열 → [가로, 세로]. 프리셋뿐 아니라 사진 원본 비율
+   ("1.778 / 1")도 그대로 다루기 위해 일반 파서로 둔다. */
+function parseRatio(ratio) {
+  const [w, h] = String(ratio || "").split("/").map((n) => parseFloat(n));
+  if (!(w > 0) || !(h > 0)) return [4, 5];
+  return [w, h];
+}
+
+/* 사진 원본 비율을 그대로 쓰되, 파노라마·초장방형이 카드 레이아웃을 무너뜨리지
+   않도록 가로:세로 0.4~2.5 범위로만 제한한다. 일반적인 사진은 전부 이 안에 든다. */
+function ratioOf(w, h) {
+  if (!(w > 0) || !(h > 0)) return "4 / 5";
+  const ar = Math.min(2.5, Math.max(0.4, w / h));
+  return `${Math.round(ar * 1000) / 1000} / 1`;
+}
+
+/* 자르기 칩 — '원본'이 맨 앞이자 기본. 원본이 프리셋과 사실상 같은 비율이면
+   같은 칩이 둘로 보이지 않게 그 프리셋은 뺀다(정사각 사진 = 1:1). */
+function ratioChoices(srcRatio) {
+  const presets = [["1 / 1", "1:1"], ["4 / 5", "4:5"], ["16 / 9", "16:9"]];
+  if (!srcRatio) return presets;
+  const [sw, sh] = parseRatio(srcRatio);
+  const src = sw / sh;
+  const same = ([value]) => {
+    const [w, h] = parseRatio(value);
+    return Math.abs(w / h - src) < 0.01;
+  };
+  return [[srcRatio, "원본"], ...presets.filter((p) => !same(p))];
+}
+
+// 업로드 프리뷰 폭 — 어떤 비율이든 세로가 380px을 넘지 않게 폭을 잡는다
 function ratioWidth(ratio) {
-  if (ratio === "16 / 9") return "320px";
-  if (ratio === "1 / 1") return "280px";
-  return "286px";
+  const [w, h] = parseRatio(ratio);
+  return `${Math.round(Math.min(320, 380 * (w / h)))}px`;
 }
 
 // 필터는 CSS 변수(--tone)로 실제 이미지에도 적용된다.
@@ -1497,7 +1528,7 @@ function uploadEdit() {
     </div>` : ""}
     <div>
       <div class="section-title">자르기</div>
-      <div class="chip-row">${chips("ratio", [["1 / 1", "1:1"], ["4 / 5", "4:5"], ["16 / 9", "16:9"]])}</div>
+      <div class="chip-row">${chips("ratio", ratioChoices(up.srcRatio))}</div>
     </div>
     <div>
       <div class="section-title">필터</div>
@@ -2855,7 +2886,7 @@ function artData(canvas) {
 // 편집 프리뷰의 CSS transform(translate → rotate → scale)과 동일한 순서로
 // 소스(이미지든 동영상 프레임이든)를 캔버스에 그린다 — 사진·동영상 베이크 공용
 function bakeGeometry(up, outW) {
-  const [rw, rh] = up.ratio === "1 / 1" ? [1, 1] : up.ratio === "16 / 9" ? [16, 9] : [4, 5];
+  const [rw, rh] = parseRatio(up.ratio);
   const outH = Math.round((outW * rh) / rw);
   const frame = app.querySelector("[data-upload-frame]");
   const previewW = frame?.getBoundingClientRect().width || parseInt(ratioWidth(up.ratio), 10);
@@ -3251,6 +3282,10 @@ async function handlePickedPhoto(input, label) {
   if (file.type.startsWith("video/")) return handlePickedVideo(input, file, label);
   try {
     const dataUrl = await fileToDataUrl(file);
+    // 고른 사진의 실제 비율을 기본값으로 — 예전엔 무조건 4:5로 구워서
+    // 가로로 긴 사진은 올리는 순간 양옆이 잘려 나갔다
+    const el = await loadImageEl(dataUrl).catch(() => null);
+    const srcRatio = ratioOf(el?.naturalWidth, el?.naturalHeight);
     update((s) => {
       s.upload.open = true;
       s.upload.step = "edit";
@@ -3258,6 +3293,8 @@ async function handlePickedPhoto(input, label) {
       s.upload.selectedImage = dataUrl;
       s.upload.selectedVideo = "";
       s.upload.videoDuration = 0;
+      s.upload.srcRatio = srcRatio;
+      s.upload.ratio = srcRatio;
       s.upload.selectedGrad = gradients[0];
       s.upload.selectedLabel = label;
       s.upload.filter = "none";
@@ -3310,6 +3347,8 @@ async function handlePickedVideo(input, file, label) {
       s.upload.selectedImage = poster;
       s.upload.selectedVideo = url;
       s.upload.videoDuration = Math.min(video.duration, MAX_VIDEO_SEC);
+      s.upload.srcRatio = ratioOf(video.videoWidth, video.videoHeight);
+      s.upload.ratio = s.upload.srcRatio;
       s.upload.selectedGrad = gradients[0];
       s.upload.selectedLabel = label;
       s.upload.filter = "none";
