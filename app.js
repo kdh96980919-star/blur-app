@@ -824,6 +824,10 @@ function render() {
   const activeField = active && app.contains(active) ? active.dataset.field : "";
   const selStart = activeField && typeof active.selectionStart === "number" ? active.selectionStart : null;
   const selEnd = activeField && typeof active.selectionEnd === "number" ? active.selectionEnd : null;
+  // 댓글 입력은 state에 없어서 재렌더에 통째로 날아간다 — 친구가 댓글을 다는 순간
+  // (실시간 갱신) 내가 쓰던 초안과 포커스가 사라지지 않게 따로 챙겨둔다
+  const oldComment = app.querySelector("#comment-input");
+  const commentDraft = oldComment ? { value: oldComment.value, focused: oldComment === active, caret: oldComment.selectionStart } : null;
   const scrolls = [...app.querySelectorAll(".screen-scroll")].map((el) => el.scrollTop);
   const oldCarousel = app.querySelector("[data-carousel]");
   const carouselLeft = oldCarousel ? oldCarousel.scrollLeft : 0;
@@ -861,6 +865,15 @@ function render() {
       if (selStart !== null && typeof el.setSelectionRange === "function") {
         try { el.setSelectionRange(Math.min(selStart, el.value.length), Math.min(selEnd, el.value.length)); } catch {}
       }
+    }
+  }
+  const newComment = app.querySelector("#comment-input");
+  if (newComment && commentDraft && commentDraft.value) {
+    newComment.value = commentDraft.value;
+    if (commentDraft.focused) {
+      newComment.focus({ preventScroll: true });
+      const at = Math.min(commentDraft.caret ?? commentDraft.value.length, commentDraft.value.length);
+      try { newComment.setSelectionRange(at, at); } catch { /* 일부 브라우저 미지원 */ }
     }
   }
   const newChat = app.querySelector("[data-chat-scroll]");
@@ -3092,6 +3105,8 @@ async function sendComment() {
   const text = input?.value.trim().slice(0, 100);
   const postId = state.overlays.commentsFor;
   if (!text || !postId) return;
+  // 보낸 뒤에는 초안 복원 대상이 아니다 — 여기서 비워야 재렌더에 다시 살아나지 않는다
+  if (input) input.value = "";
   try {
     const row = await api.addComment(state.me, postId, text);
     const post = state.posts.find((p) => p.id === postId);
@@ -3519,35 +3534,81 @@ avatarInput.addEventListener("change", async () => {
 });
 
 // ---------------- 모바일 키보드 대응 ----------------
-// 앱 높이가 100lvh로 고정돼 있어서, 키보드가 올라오면 iOS는 창 전체를 위로 밀어
-// 올린다(상단이 잘리고 전송 버튼이 화면 밖으로 나간다). visualViewport로 키보드가
-// 가린 높이를 실측해 --kb에 넣으면 앱이 그만큼 줄어들어, 카카오톡처럼 입력창이
-// 키보드 바로 위에 앉는다. 밀려 올라간 창은 즉시 원위치로 되돌린다.
+// 앱 높이가 100lvh로 고정돼 있어서, 키보드가 올라와도 앱은 그대로 852px을 그린다
+// → 입력창이 자판에 그대로 덮인다. 키보드가 가린 높이를 --kb에 넣어 앱을 그만큼
+// 줄이면, 카카오톡처럼 입력창이 자판 바로 위에 앉는다.
+//
+// 측정은 두 겹이다.
+//  ① visualViewport — 정상 경로. `innerHeight - vv.height`가 키보드 높이다.
+//     ⚠️ offsetTop은 빼지 않는다. iOS가 화면을 밀어 올리면 그 값이 키보드 높이를
+//     상쇄해 0이 돼 버려서, 정작 필요한 순간에 앱이 안 줄어든다.
+//  ② 폴백 — iOS 홈 화면 앱에서는 키보드가 떠도 visualViewport가 그대로인 경우가
+//     있다(특히 코드로 focus를 옮겼을 때). 입력이 시작됐는데도 뷰포트가 그대로면
+//     지난번에 실측해 둔 키보드 높이로 대신 밀어 올린다. 마우스 환경에서는 끈다.
 const viewport = window.visualViewport;
+const KB_MEMO = "blur-kb-height";
+let kbApplied = -1;
+let kbMeasured = 0;
+let kbFallback = false;
+
+function applyKeyboardInset(px) {
+  const kb = Math.max(0, Math.round(px));
+  if (kb === kbApplied) return;
+  kbApplied = kb;
+  document.documentElement.style.setProperty("--kb", `${kb}px`);
+  // 키보드가 떠 있으면 홈 인디케이터 여백이 필요 없다 — 입력창을 자판에 바짝 붙인다
+  document.documentElement.classList.toggle("kb-open", kb > 0);
+  // 줄어든 높이에 맞춰 대화는 마지막 말풍선이 계속 보이게 한다
+  const chat = app.querySelector("[data-chat-scroll]");
+  if (chat) chat.scrollTop = chat.scrollHeight;
+}
+
 if (viewport) {
   let kbFrame = 0;
-  let kbNow = 0;
   const syncKeyboard = () => {
     cancelAnimationFrame(kbFrame);
     kbFrame = requestAnimationFrame(() => {
-      const gap = window.innerHeight - viewport.height - viewport.offsetTop;
-      // 80px 미만은 키보드가 아니라 브라우저 UI·확대 오차 — 무시한다
-      const kb = gap > 80 ? Math.round(gap) : 0;
-      if (kb !== kbNow) {
-        kbNow = kb;
-        document.documentElement.style.setProperty("--kb", `${kb}px`);
-        // 키보드가 떠 있으면 홈 인디케이터 여백이 필요 없다 — 입력창을 키보드에 바짝 붙인다
-        document.documentElement.classList.toggle("kb-open", kb > 0);
-        // 줄어든 높이에 맞춰 대화는 마지막 말풍선이 계속 보이게 한다
-        const chat = app.querySelector("[data-chat-scroll]");
-        if (chat) chat.scrollTop = chat.scrollHeight;
+      const gap = window.innerHeight - viewport.height;
+      // 60px 미만은 키보드가 아니라 브라우저 UI·확대 오차 — 무시한다
+      kbMeasured = gap > 60 ? Math.round(gap) : 0;
+      if (kbMeasured) {
+        // 실측값을 기억해 둔다 — 위 ②번 폴백이 쓸 값
+        kbFallback = false;
+        try { localStorage.setItem(KB_MEMO, String(kbMeasured)); } catch { /* 사파리 비공개 모드 */ }
       }
-      if (window.scrollY !== 0) window.scrollTo(0, 0);
+      if (!kbFallback) applyKeyboardInset(kbMeasured);
     });
   };
   viewport.addEventListener("resize", syncKeyboard);
   viewport.addEventListener("scroll", syncKeyboard);
 }
+
+const TYPING_FIELD = "input:not([type=color]):not([type=range]):not([type=checkbox]):not([type=file]), textarea";
+const canGuessKeyboard = navigator.maxTouchPoints > 0 && window.matchMedia("(pointer: coarse)").matches;
+
+app.addEventListener("focusin", (event) => {
+  const field = event.target;
+  if (!canGuessKeyboard || !field.matches?.(TYPING_FIELD)) return;
+  setTimeout(() => {
+    // 뷰포트가 제대로 줄었거나 이미 포커스가 떠났으면 폴백이 필요 없다
+    if (kbMeasured > 0 || document.activeElement !== field) return;
+    const remembered = Number(localStorage.getItem(KB_MEMO));
+    kbFallback = true;
+    // 실측값이 없으면 화면의 48%로 어림잡는다(아이폰 한글 자판 + 상단 바 실측 기준).
+    // 조금 넉넉히 잡아 입력창이 자판에 덮이는 것보다 살짝 뜨는 쪽을 택한다.
+    applyKeyboardInset(remembered > 0 ? remembered : Math.round(window.innerHeight * 0.48));
+  }, 350);
+});
+
+app.addEventListener("focusout", () => {
+  if (!kbFallback) return;
+  // 다른 입력창으로 옮겨간 것뿐이면 그대로 둔다
+  setTimeout(() => {
+    if (document.activeElement?.matches?.(TYPING_FIELD)) return;
+    kbFallback = false;
+    applyKeyboardInset(kbMeasured);
+  }, 80);
+});
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("./sw.js").catch(() => {});

@@ -122,6 +122,8 @@ button:focus {
 
 #app {
   width: 100vw;
+  /* 키보드가 오르내릴 때 딱딱하게 튀지 않도록 짧게 이어준다 */
+  transition: min-height .18s ease;
   min-height: calc(var(--app-h) - var(--kb));
   display: grid;
   place-items: center;
@@ -133,6 +135,7 @@ button:focus {
   position: relative;
   width: min(100vw, var(--phone-w));
   min-width: 0;
+  transition: height .18s ease;
   height: calc(var(--app-h) - var(--kb));
   max-height: var(--phone-h);
   overflow: hidden;
