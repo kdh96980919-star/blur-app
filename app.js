@@ -3558,11 +3558,18 @@ function applyKeyboardInset(px) {
   if (kb === kbApplied) return;
   kbApplied = kb;
   document.documentElement.style.setProperty("--kb", `${kb}px`);
-  // 키보드가 떠 있으면 홈 인디케이터 여백이 필요 없다 — 입력창을 자판에 바짝 붙인다
-  document.documentElement.classList.toggle("kb-open", kb > 0);
   // 줄어든 높이에 맞춰 대화는 마지막 말풍선이 계속 보이게 한다
   const chat = app.querySelector("[data-chat-scroll]");
   if (chat) chat.scrollTop = chat.scrollHeight;
+}
+
+// 자판이 떠 있으면 홈 인디케이터 여백은 자판이 이미 덮고 있다 — 입력창을 자판에 바짝 붙인다.
+// ⚠️ `--kb > 0`으로 판단하면 안 된다. iOS가 화면을 밀어 올려 해결한 경우엔 --kb가 0이라
+// 여백이 그대로 남아 입력창 아래 59px이 뜬다(실기기에서 실제로 그랬다).
+// 판단 기준은 '자판이 떠 있는가' — 입력창에 포커스가 있거나, 뷰포트가 반응했거나, 폴백 중.
+function syncKeyboardOpen() {
+  const typing = canGuessKeyboard && document.activeElement?.matches?.(TYPING_FIELD);
+  document.documentElement.classList.toggle("kb-open", Boolean(typing) || viewportReacted() || kbFallback);
 }
 
 // 브라우저가 키보드에 대해 뭐라도 반응했는가 — 줄었거나(높이) 밀어 올렸거나(offsetTop)
@@ -3587,6 +3594,7 @@ if (viewport) {
         if (full > 60) { try { localStorage.setItem(KB_MEMO, String(full)); } catch { /* 사파리 비공개 모드 */ } }
       }
       if (!kbFallback) applyKeyboardInset(kbMeasured);
+      syncKeyboardOpen();
     });
   };
   viewport.addEventListener("resize", syncKeyboard);
@@ -3599,6 +3607,8 @@ const canGuessKeyboard = navigator.maxTouchPoints > 0 && window.matchMedia("(poi
 app.addEventListener("focusin", (event) => {
   const field = event.target;
   if (!canGuessKeyboard || !field.matches?.(TYPING_FIELD)) return;
+  // 자판은 곧 뜬다 — 아래 여백을 먼저 걷어내면 iOS가 한 번에 제자리로 밀어 올린다
+  syncKeyboardOpen();
   setTimeout(() => {
     // 브라우저가 조금이라도 반응했거나 포커스가 떠났으면 폴백은 필요 없다
     if (viewportReacted() || document.activeElement !== field) return;
@@ -3611,12 +3621,14 @@ app.addEventListener("focusin", (event) => {
 });
 
 app.addEventListener("focusout", () => {
-  if (!kbFallback) return;
   // 다른 입력창으로 옮겨간 것뿐이면 그대로 둔다
   setTimeout(() => {
     if (document.activeElement?.matches?.(TYPING_FIELD)) return;
-    kbFallback = false;
-    applyKeyboardInset(kbMeasured);
+    if (kbFallback) {
+      kbFallback = false;
+      applyKeyboardInset(kbMeasured);
+    }
+    syncKeyboardOpen();
   }, 80);
 });
 
