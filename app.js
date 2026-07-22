@@ -3539,12 +3539,14 @@ avatarInput.addEventListener("change", async () => {
 // 줄이면, 카카오톡처럼 입력창이 자판 바로 위에 앉는다.
 //
 // 측정은 두 겹이다.
-//  ① visualViewport — 정상 경로. `innerHeight - vv.height`가 키보드 높이다.
-//     ⚠️ offsetTop은 빼지 않는다. iOS가 화면을 밀어 올리면 그 값이 키보드 높이를
-//     상쇄해 0이 돼 버려서, 정작 필요한 순간에 앱이 안 줄어든다.
-//  ② 폴백 — iOS 홈 화면 앱에서는 키보드가 떠도 visualViewport가 그대로인 경우가
-//     있다(특히 코드로 focus를 옮겼을 때). 입력이 시작됐는데도 뷰포트가 그대로면
-//     지난번에 실측해 둔 키보드 높이로 대신 밀어 올린다. 마우스 환경에서는 끈다.
+//  ① visualViewport — 정상 경로. 키보드가 가린 높이 = `innerHeight - vv.height - vv.offsetTop`.
+//     ⚠️ offsetTop을 꼭 빼야 한다. iOS는 스크롤이 없는 화면에서 입력창을 보여주려고
+//     화면 자체를 offsetTop만큼 밀어 올리는데, 그만큼은 이미 해결된 몫이다. 안 빼면
+//     앱이 필요보다 더 줄어들어 자판과 앱 사이에 그만큼 빈 띠가 생긴다.
+//  ② 폴백 — iOS 홈 화면 앱에서는 키보드가 떠도 visualViewport가 전혀 반응하지 않는
+//     경우가 있다(특히 코드로 focus를 옮겼을 때 — '댓글 탭 → 답글'이 그 경로).
+//     밀어 올리지도, 줄지도 않았다면 지난번 실측값으로 대신 밀어 올린다.
+//     ①이 조금이라도 반응했으면 폴백은 켜지 않는다(이중 보정 = 빈 띠).
 const viewport = window.visualViewport;
 const KB_MEMO = "blur-kb-height";
 let kbApplied = -1;
@@ -3563,18 +3565,26 @@ function applyKeyboardInset(px) {
   if (chat) chat.scrollTop = chat.scrollHeight;
 }
 
+// 브라우저가 키보드에 대해 뭐라도 반응했는가 — 줄었거나(높이) 밀어 올렸거나(offsetTop)
+function viewportReacted() {
+  if (!viewport) return false;
+  return viewport.offsetTop > 4 || window.innerHeight - viewport.height > 60;
+}
+
 if (viewport) {
   let kbFrame = 0;
   const syncKeyboard = () => {
     cancelAnimationFrame(kbFrame);
     kbFrame = requestAnimationFrame(() => {
-      const gap = window.innerHeight - viewport.height;
+      const gap = window.innerHeight - viewport.height - viewport.offsetTop;
       // 60px 미만은 키보드가 아니라 브라우저 UI·확대 오차 — 무시한다
       kbMeasured = gap > 60 ? Math.round(gap) : 0;
-      if (kbMeasured) {
-        // 실측값을 기억해 둔다 — 위 ②번 폴백이 쓸 값
+      if (viewportReacted()) {
+        // 뷰포트가 반응했으면 폴백은 물러난다
         kbFallback = false;
-        try { localStorage.setItem(KB_MEMO, String(kbMeasured)); } catch { /* 사파리 비공개 모드 */ }
+        // 키보드 전체 높이를 기억해 둔다 — 위 ②번 폴백이 쓸 값
+        const full = Math.round(window.innerHeight - viewport.height);
+        if (full > 60) { try { localStorage.setItem(KB_MEMO, String(full)); } catch { /* 사파리 비공개 모드 */ } }
       }
       if (!kbFallback) applyKeyboardInset(kbMeasured);
     });
@@ -3590,8 +3600,8 @@ app.addEventListener("focusin", (event) => {
   const field = event.target;
   if (!canGuessKeyboard || !field.matches?.(TYPING_FIELD)) return;
   setTimeout(() => {
-    // 뷰포트가 제대로 줄었거나 이미 포커스가 떠났으면 폴백이 필요 없다
-    if (kbMeasured > 0 || document.activeElement !== field) return;
+    // 브라우저가 조금이라도 반응했거나 포커스가 떠났으면 폴백은 필요 없다
+    if (viewportReacted() || document.activeElement !== field) return;
     const remembered = Number(localStorage.getItem(KB_MEMO));
     kbFallback = true;
     // 실측값이 없으면 화면의 48%로 어림잡는다(아이폰 한글 자판 + 상단 바 실측 기준).

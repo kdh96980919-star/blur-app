@@ -1648,10 +1648,12 @@ button.room-bio-empty {
   cursor: pointer;
 }
 
-/* 댓글 입력 — 유리 알약 + 검정 원 전송 */
+/* 댓글 입력 — 유리 알약 + 검정 원 전송.
+   시트가 거의 흰색이라 입력창이 배경에 묻혀 보였다 → 한 단계 진한 세이지 + 헤어라인 */
 .cinput {
   margin-top: 12px;
-  background: rgba(232, 240, 238, .8);
+  background: rgba(205, 224, 219, .92);
+  box-shadow: inset 0 0 0 1px rgba(56, 51, 63, .07);
   border-radius: 999px;
   padding: 6px 6px 6px 18px;
   display: flex;
