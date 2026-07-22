@@ -678,13 +678,15 @@ function ratioOf(w, h) {
      · 세로 기준 = (앱 높이 − 사진 위아래 UI) × 비율
    HOME_CHROME은 홈에서 사진이 쓸 수 없는 세로 공간의 합(상단바·허브 알약·
    캐러셀 패딩·이름/댓글 줄·캡션·인디케이터·탭바). 안전영역은 기기마다 달라
-   env()로 따로 뺀다. */
-const HOME_CHROME = 364;
+   env()로 따로 뺀다. .topbar의 위 여백을 34px 줄였으므로 여기서도 34px 줄인다
+   (364 → 330) — 그래야 위로 올라간 만큼 사진이 커진다. */
+const HOME_CHROME = 330;
 
 function cardWidth(ratio) {
   const [w, h] = parseRatio(ratio);
   const ar = (w / h).toFixed(4);
-  const avail = `calc(var(--stage-h) - ${HOME_CHROME}px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))`;
+  // --hub-extra = 주제가 두 줄 이상일 때 늘어난 만큼(afterRender가 실측해 넣는다)
+  const avail = `calc(var(--stage-h) - ${HOME_CHROME}px - var(--hub-extra, 0px) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))`;
   return `min(86vw, calc(${avail} * ${ar}))`;
 }
 
@@ -1282,7 +1284,9 @@ function personRow(user, mode) {
         <div class="person-name">${escapeHtml(user.name)}</div>
         <div class="person-id">@${escapeHtml(user.id)}${user.mutual ? ` · ${escapeHtml(user.mutual)}` : ""}</div>
       </button>
-      <button class="act-btn ${sent ? "sent" : "add"}" aria-label="${sent ? "요청 보냄" : "친구 추가"}" title="${sent ? "요청 보냄" : "친구 추가"}" data-action="send-request" data-user="${user.id}">${sent ? icon("check", 14) : icon("plus", 15)}</button>
+      ${sent
+        ? `<button class="mini-btn ghost" data-action="cancel-request" data-user="${user.id}">요청 취소</button>`
+        : `<button class="act-btn add" aria-label="친구 추가" title="친구 추가" data-action="send-request" data-user="${user.id}">${icon("plus", 15)}</button>`}
     </div>`;
   }
   return `<div class="person-row">
@@ -1598,7 +1602,7 @@ function profileView(userId, mode) {
       </div>
       ${state.friends.includes(userId)
         ? `<button class="msg-btn" style="width:38px;height:38px" aria-label="메시지" data-action="open-chat" data-user="${userId}">${icon("message", 17)}</button>`
-        : isPublic ? `<button class="mini-btn ${sent ? "ghost" : ""}" data-action="send-request" data-user="${userId}">${sent ? "요청 보냄" : "친구 요청"}</button>` : ""}
+        : isPublic ? `<button class="mini-btn ${sent ? "ghost" : ""}" data-action="${sent ? "cancel-request" : "send-request"}" data-user="${userId}">${sent ? "요청 취소" : "친구 요청"}</button>` : ""}
     </div>
     <div class="grid-title"><div class="section-title" style="margin:0">${escapeHtml(user.name)}님의 허브 응답</div></div>
     <div class="screen-scroll">
@@ -1776,7 +1780,7 @@ function privateProfileSheet() {
             <span class="badge private">비공개 계정</span>
           </div>
         </div>
-        <button class="mini-btn ${sent ? "ghost" : ""}" data-action="send-request" data-user="${user.id}">${sent ? "요청 보냄" : "친구 요청"}</button>
+        <button class="mini-btn ${sent ? "ghost" : ""}" data-action="${sent ? "cancel-request" : "send-request"}" data-user="${user.id}">${sent ? "요청 취소" : "친구 요청"}</button>
       </div>
       <div style="margin-top:16px;padding:12px 16px;border-radius:14px;background:rgba(224,121,180,.08);font-size:11.5px;line-height:1.6;color:var(--muted)">
         비공개 계정이에요. 프로필과 지난 허브는 친구가 된 후에 볼 수 있어요. 지금은 허브 응답에 댓글만 남길 수 있어요.
@@ -2127,7 +2131,23 @@ function toastView() {
 // 종 아이콘 흔들림 — 새 알림이 생겼을 때 한 번만 (베타 피드백 8)
 let lastUnseenNotif = 0;
 
+// 주제가 두 줄 이상이면 사진이 쓸 수 있는 세로 공간이 그만큼 줄어든다.
+// HOME_CHROME은 '주제 한 줄'을 가정한 상수라, 늘어난 줄 높이를 실측해 --hub-extra로
+// 넘겨 카드 계산에서 함께 뺀다. (이게 없으면 긴 주제에 사진 위아래가 잘렸다)
+function syncHubExtra() {
+  const el = app.querySelector(".topic-callout");
+  let extra = 0;
+  if (el) {
+    const cs = getComputedStyle(el);
+    const lh = parseFloat(cs.lineHeight) || 0;
+    const inner = el.getBoundingClientRect().height - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+    if (lh > 0) extra = Math.max(0, Math.round(inner / lh) - 1) * lh;
+  }
+  document.documentElement.style.setProperty("--hub-extra", `${Math.round(extra)}px`);
+}
+
 function afterRender() {
+  syncHubExtra();
   const bell = app.querySelector(".icon-btn.bell");
   if (bell) {
     const unseen = Number(bell.dataset.unseen || 0);
@@ -2392,6 +2412,8 @@ function handleAction(action, el) {
       return update((s) => { s.overlays.friendUser = ""; });
     case "send-request":
       return friendAction("request", id);
+    case "cancel-request":
+      return friendAction("cancel", id);
     case "accept-request":
       return friendAction("accept", id);
     case "decline-request":
@@ -2549,7 +2571,8 @@ async function friendAction(kind, handle) {
   try {
     if (kind === "request") await api.sendFriendRequest(state.me, uid);
     else if (kind === "accept") await api.acceptFriend(state.me, uid);
-    else if (kind === "decline" || kind === "remove") await api.removeFriendship(state.me, uid);
+    // 취소 = 내가 보낸 pending 요청을 지우는 것 (거절·삭제와 같은 행 삭제)
+    else if (kind === "decline" || kind === "remove" || kind === "cancel") await api.removeFriendship(state.me, uid);
     else if (kind === "block") await api.blockFriend(state.me, uid);
     const rows = await api.fetchFriendships();
     update((s) => {
@@ -2560,6 +2583,7 @@ async function friendAction(kind, handle) {
       request: "친구 요청을 보냈어요",
       accept: "친구가 되었어요",
       decline: "요청을 거절했어요",
+      cancel: "친구 요청을 취소했어요",
       remove: "친구를 삭제했어요",
       block: "차단했어요"
     };
