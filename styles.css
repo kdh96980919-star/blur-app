@@ -1497,6 +1497,13 @@ button.room-bio-empty {
   animation: sheetUp .28s cubic-bezier(.22, 1, .36, 1) both;
 }
 
+/* 키보드가 올라오면 시트 아래 여백을 걷어내 입력창이 자판 바로 위에 붙게 한다
+   (카카오톡과 같은 배치 — 안전영역 여백은 키보드가 이미 덮고 있어 필요 없다) */
+:root.kb-open .sheet,
+:root.kb-open .chat-input-row {
+  padding-bottom: 10px;
+}
+
 .handle {
   width: 38px;
   height: 4px;
@@ -1608,6 +1615,25 @@ button.room-bio-empty {
   color: var(--muted);
   font-size: 10px;
   font-weight: 300;
+}
+
+/* 남의 댓글은 탭하면 그 사람에게 답글 — 입력창에 @아이디가 채워진다 */
+.comment-bubble.replyable {
+  cursor: pointer;
+  border-radius: 10px;
+  margin: 3px -6px 0;
+  padding: 0 6px;
+  transition: background .14s ease;
+}
+
+.comment-bubble.replyable:active {
+  background: rgba(56, 51, 63, .06);
+}
+
+/* 댓글 속 @아이디 */
+.mention {
+  color: var(--yellow-deep);
+  font-weight: 600;
 }
 
 .comment-del {

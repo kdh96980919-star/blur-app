@@ -1725,6 +1725,23 @@ function settingsView() {
   </section>`;
 }
 
+// 댓글 본문의 @아이디를 강조 — 여러 명이 얘기할 때 누구에게 하는 말인지 한눈에 보이게
+function commentHtml(text) {
+  return escapeHtml(text).replace(/@([a-z0-9_]{3,16})/g, '<span class="mention">@$1</span>');
+}
+
+// 남의 댓글을 탭하면 그 사람에게 답글 — 입력창에 @아이디를 채우고 키보드를 띄운다
+// (인스타 스토리 답장과 같은 흐름. 재렌더하면 포커스가 풀리므로 DOM만 직접 건드린다)
+function replyToComment(handle) {
+  const input = app.querySelector("#comment-input");
+  if (!input || !handle) return;
+  const rest = input.value.replace(/^@[a-z0-9_]{3,16}\s*/, "");
+  input.value = `@${handle} ${rest}`;
+  input.focus();
+  const end = input.value.length;
+  if (typeof input.setSelectionRange === "function") input.setSelectionRange(end, end);
+}
+
 function commentsSheet() {
   const post = state.posts.find((p) => p.id === state.overlays.commentsFor);
   if (!post) return "";
@@ -1750,7 +1767,7 @@ function commentsSheet() {
                 ${mine && c.id ? `<button class="comment-del" aria-label="댓글 삭제" data-action="delete-comment" data-comment="${c.id}" data-post="${post.id}">${icon("x", 12)}</button>` : ""}
                 ${!mine && c.id ? `<button class="comment-del" aria-label="댓글 신고" data-action="open-report" data-type="comment" data-target="${c.id}">${icon("flag", 11)}</button>` : ""}
               </div>
-              <div class="comment-bubble">${escapeHtml(c.text)}</div>
+              <div class="comment-bubble${mine ? "" : " replyable"}" ${mine ? "" : `data-action="reply-comment" data-handle="${escapeHtml(person?.id || "")}" title="답글 달기"`}>${commentHtml(c.text)}</div>
             </div>
           </div>`;
         }).join("") : `<div class="empty" style="min-height:80px">아직 댓글이 없어요</div>`}
@@ -2414,6 +2431,8 @@ function handleAction(action, el) {
       return friendAction("request", id);
     case "cancel-request":
       return friendAction("cancel", id);
+    case "reply-comment":
+      return replyToComment(el.dataset.handle);
     case "accept-request":
       return friendAction("accept", id);
     case "decline-request":
@@ -3082,6 +3101,11 @@ async function sendComment() {
     });
     // 내 댓글이 아니면 게시물 작성자에게 잠금화면 알림
     if (post && post.authorId !== "me") api.notify("comment", uidOf(post.authorId));
+    // @아이디로 시작하는 답글이면 지목당한 사람에게도 알림 — 내 사진에 달린 답글은
+    // 작성자(=나)에게만 가서, 정작 답글을 받은 사람은 모른 채 지나가기 때문
+    const mentioned = text.match(/^@([a-z0-9_]{3,16})/);
+    const mentionUid = mentioned ? uidOf(mentioned[1]) : "";
+    if (mentionUid && mentionUid !== state.me && (!post || uidOf(post.authorId) !== mentionUid)) api.notify("comment", mentionUid);
   } catch (error) {
     toast(error.message || "댓글을 남기지 못했어요");
   }
@@ -3512,6 +3536,8 @@ if (viewport) {
       if (kb !== kbNow) {
         kbNow = kb;
         document.documentElement.style.setProperty("--kb", `${kb}px`);
+        // 키보드가 떠 있으면 홈 인디케이터 여백이 필요 없다 — 입력창을 키보드에 바짝 붙인다
+        document.documentElement.classList.toggle("kb-open", kb > 0);
         // 줄어든 높이에 맞춰 대화는 마지막 말풍선이 계속 보이게 한다
         const chat = app.querySelector("[data-chat-scroll]");
         if (chat) chat.scrollTop = chat.scrollHeight;
