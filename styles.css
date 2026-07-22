@@ -33,6 +33,11 @@
      전체화면 PWA에선 lvh로 바뀐다 — 아래 display-mode:standalone 블록 참고. */
   --app-h: 100svh;
 
+  /* 화면 아래를 키보드가 가린 높이. app.js가 visualViewport로 실측해 넣는다.
+     이 값만큼 앱을 줄여 입력창이 키보드 바로 위에 앉게 한다(카카오톡과 같은 동작).
+     이렇게 하지 않으면 iOS가 창 전체를 위로 밀어 올려 상단이 잘린다. */
+  --kb: 0px;
+
   /* 사진 카드 크기 계산의 기준이 되는 '무대' 높이 = 폰이 실제로 차지하는 높이.
      브라우저 프리뷰에선 폰 목업이 --phone-h로 잘리므로 그 상한을 함께 반영해야
      한다(안 그러면 큰 화면에서 카드가 목업 밖으로 넘친다). 전체화면 PWA에는
@@ -114,7 +119,7 @@ button:focus {
 
 #app {
   width: 100vw;
-  min-height: var(--app-h);
+  min-height: calc(var(--app-h) - var(--kb));
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -125,7 +130,7 @@ button:focus {
   position: relative;
   width: min(100vw, var(--phone-w));
   min-width: 0;
-  height: var(--app-h);
+  height: calc(var(--app-h) - var(--kb));
   max-height: var(--phone-h);
   overflow: hidden;
   background: var(--scene);
@@ -537,7 +542,10 @@ button:focus {
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .9), var(--lift-sm);
   border-radius: 999px;
   padding: 14px 18px;
-  font-size: 13.5px;
+  /* ⚠️ 글자를 16px 밑으로 내리지 말 것 — iOS는 16px 미만 입력창에 포커스가 가면
+     화면을 강제로 확대한다. 전체화면 PWA에는 축소할 방법이 없어 전송 버튼이
+     화면 밖으로 잘린 채 그대로 남는다. 실제로 타이핑하는 입력창은 전부 16px. */
+  font-size: 16px;
 }
 
 .input:focus,
@@ -1264,7 +1272,7 @@ button:focus {
   outline: none;
   background: transparent;
   padding: 10px 0;
-  font-size: 13.5px;
+  font-size: 16px; /* iOS 자동 확대 방지 — .input 주석 참고 */
 }
 
 .profile-head {
@@ -1480,7 +1488,8 @@ button.room-bio-empty {
   right: 0;
   bottom: 0;
   z-index: 100;
-  max-height: 72svh;
+  /* 키보드가 올라오면 앱 자체가 줄어든다 — 시트도 그 안에 들어와야 하므로 100% 상한을 함께 건다 */
+  max-height: min(72svh, calc(100% - 16px));
   overflow-y: auto;
   padding: 14px 22px calc(24px + env(safe-area-inset-bottom, 0px));
   border-radius: 34px 34px 0 0;
@@ -1631,7 +1640,7 @@ button.room-bio-empty {
   outline: none;
   background: transparent;
   padding: 8px 0;
-  font-size: 13.5px;
+  font-size: 16px; /* iOS 자동 확대 방지 — .input 주석 참고 */
 }
 
 /* ── 1:1 대화 ── */
@@ -1940,42 +1949,73 @@ input.bg-swatch {
   display: none;
 }
 
-/* 프로필 색 선택 — 온보딩·프로필 수정 공용. 그라데이션 미리보기 + 팔레트 점 */
+/* 프로필 색 선택 — 온보딩·프로필 수정 공용.
+   고정 팔레트 점은 없앴다(지인끼리 색이 겹쳤다) — 시스템 컬러 피커 하나로 통일. */
 .color-pick {
   display: grid;
   justify-items: center;
   gap: 10px;
 }
 
-.color-preview {
-  width: 72px;
-  height: 72px;
-  border-radius: 50%;
-  box-shadow: 0 6px 22px rgba(0, 0, 0, .1);
-}
-
-.color-dots {
-  display: flex;
+/* 라벨 전체가 색 선택창을 여는 버튼. 프로필 수정에선 알약, 온보딩에선 큰 원. */
+.color-choose {
+  position: relative;
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
   gap: 10px;
-  flex-wrap: wrap;
+  padding: 7px 18px 7px 7px;
+  border-radius: 999px;
+  background: var(--glass-strong);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .9), var(--lift-sm);
+  cursor: pointer;
 }
 
-.color-dot {
+.color-choose.big {
+  flex-direction: column;
+  gap: 14px;
+  padding: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.color-swatch {
+  flex: none;
   width: 34px;
   height: 34px;
-  padding: 0;
-  border: 1px solid rgba(56, 51, 63, .14);
   border-radius: 50%;
-  cursor: pointer;
-  transition: transform .15s ease, box-shadow .15s ease;
+  box-shadow: inset 0 0 0 1px rgba(56, 51, 63, .14);
 }
 
-.color-dot.on {
-  border-color: rgba(56, 51, 63, .45);
-  box-shadow: 0 0 0 2.5px #fff, 0 0 0 4px rgba(56, 51, 63, .35);
-  transform: scale(1.08);
+.color-choose.big .color-swatch {
+  width: 92px;
+  height: 92px;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, .1), inset 0 0 0 1px rgba(56, 51, 63, .07);
+}
+
+.color-choose-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.color-choose.big .color-choose-label {
+  color: var(--muted);
+}
+
+/* 실제 탭 대상 — 라벨을 통째로 덮어 어디를 눌러도 색 선택창이 열린다 */
+.color-custom {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  background: none;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 .badge {

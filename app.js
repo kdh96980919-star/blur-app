@@ -606,7 +606,6 @@ function patchColorPick(scope) {
   const color = scope === "onboard" ? state.onboard?.color : state.edit?.color;
   const preview = box.querySelector("[data-color-preview]");
   if (preview) preview.style.background = avatarFill(color);
-  box.querySelectorAll(".color-dot").forEach((dot) => dot.classList.toggle("on", dot.dataset.color === color));
   const custom = box.querySelector(".color-custom");
   if (custom && custom.value !== color && /^#[0-9a-fA-F]{6}$/.test(color || "")) custom.value = color;
   const bigPreview = app.querySelector("[data-edit-avatar]");
@@ -757,6 +756,22 @@ function avatarFill(color) {
     stops.push(`rgb(${rr},${gg},${bb}) ${Math.round(t * 100)}%`);
   }
   return `radial-gradient(circle closest-side, ${stops.join(", ")})`;
+}
+
+// 새 계정의 첫 프로필 색 — 색상환 전체에서 무작위로 뽑는다.
+// (기본값이 고정돼 있으면 색을 안 바꾼 사람들끼리 프로필이 전부 똑같아진다)
+// 채도·밝기는 파스텔 배경 위에서 잘 보이는 구간으로만 제한.
+function randomProfileColor() {
+  const h = Math.random() * 360;
+  const s = 0.30 + Math.random() * 0.20;  // 기존 팔레트(약 0.24~0.31)와 같은 결의 차분한 채도
+  const l = 0.50 + Math.random() * 0.10;
+  const a = s * Math.min(l, 1 - l);
+  const channel = (n) => {
+    const k = (n + h / 30) % 12;
+    const v = l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1));
+    return Math.round(v * 255).toString(16).padStart(2, "0");
+  };
+  return `#${channel(0)}${channel(8)}${channel(4)}`;
 }
 
 function avatar(person, sizeClass = "avatar") {
@@ -928,15 +943,17 @@ function editIdHintState() {
   return { text: "사용할 수 있는 아이디예요", cls: "good" };
 }
 
-// 프로필 색 선택 — 가입·프로필 수정이 공유. 미리보기 원 + 팔레트 점 + 직접 선택
+// 프로필 색 선택 — 가입 안내·프로필 수정이 공유.
+// ⚠️ 고정 팔레트(점 5개)는 두지 않는다 — 대부분 그 안에서만 고르는 바람에 지인끼리
+// 프로필 색이 전부 겹쳤다. 시스템 컬러 피커 하나만 남겨 어떤 색이든 고르게 한다.
 function colorPicker(scope, color, { preview = true } = {}) {
   return `<div class="color-pick" data-color-pick="${scope}">
-    ${preview ? `<div class="color-preview" data-color-preview style="background:${avatarFill(color)}"></div>` : ""}
-    <div class="hint" style="text-align:center">선택한 색이 기본 프로필 사진이 돼요</div>
-    <div class="color-dots">
-      ${palette.map((c) => `<button type="button" class="color-dot ${c === color ? "on" : ""}" style="background:${avatarFill(c)}" data-action="pick-color" data-scope="${scope}" data-color="${c}" aria-label="프로필 색 ${c}"></button>`).join("")}
-      <input type="color" class="bg-swatch color-custom" data-field="${scope}.color" value="${escapeHtml(color)}" aria-label="직접 색 선택">
-    </div>
+    <label class="color-choose${preview ? " big" : ""}">
+      <span class="color-swatch" data-color-preview style="background:${avatarFill(color)}"></span>
+      <span class="color-choose-label">${preview ? "탭해서 색 고르기" : "색 고르기"}</span>
+      <input type="color" class="color-custom" data-field="${scope}.color" value="${escapeHtml(color)}" aria-label="프로필 색 고르기">
+    </label>
+    <div class="hint" style="text-align:center">원하는 색을 자유롭게 고를 수 있어요</div>
   </div>`;
 }
 
@@ -1429,7 +1446,7 @@ function onboardView() {
   } else if (ob.step === ONBOARD_COLOR_STEP) {
     inner = `<div class="onboard-body">
         <div class="onboard-title">프로필 색 고르기</div>
-        <div class="subtitle">선택한 색이 내 기본 프로필 사진이 돼요.<br>언제든 프로필 수정에서 바꿀 수 있어요.</div>
+        <div class="subtitle">원을 눌러 마음에 드는 색을 고르세요.<br>선택한 색이 내 기본 프로필 사진이 돼요.</div>
         ${colorPicker("onboard", ob.color)}
       </div>
       <button class="btn" style="width:100%" data-action="onboard-next">다음</button>`;
@@ -2391,16 +2408,6 @@ function handleAction(action, el) {
       return update((s) => { s.edit = { ...s.profile, avail: true }; });
     case "close-edit":
       return update((s) => { s.edit = null; });
-    case "pick-color": {
-      const scope = el.dataset.scope;
-      if (scope === "onboard" && state.onboard) state.onboard.color = el.dataset.color;
-      else if (scope === "edit" && state.edit) {
-        state.edit.color = el.dataset.color;
-        // 그라데이션 색을 고르면 사진 프로필은 즉시 내려놓는다 — 사진 위에 겹치는 문제 방지
-        if (state.edit.photo) { state.edit.photo = ""; return render(); }
-      }
-      return patchColorPick(scope);
-    }
     case "onboard-next":
       return update((s) => { s.onboard.step += 1; });
     case "onboard-enable-push":
@@ -2464,12 +2471,14 @@ async function completeSetup() {
       update((s) => { s.busy = ""; s.signup.avail = false; });
       return toast("이미 사용 중인 아이디예요");
     }
-    await api.updateProfile(state.me, { handle: id, name, setup_done: true });
+    // 첫 색은 무작위로 넣어둔다 — 안내를 중간에 그만둬도 지인끼리 색이 겹치지 않게
+    const color = randomProfileColor();
+    await api.updateProfile(state.me, { handle: id, name, color, setup_done: true });
     await loadAll(state.me);
     state.busy = "";
     state.auth = "app";
     // 가입 직후 첫 만남 안내 — 마지막 단계에서 프로필 그라데이션 색을 고른다
-    state.onboard = { step: 0, color: palette[Math.floor(Math.random() * palette.length)] };
+    state.onboard = { step: 0, color };
     render();
     startLive();
   } catch (error) {
@@ -3460,6 +3469,35 @@ avatarInput.addEventListener("change", async () => {
     avatarInput.value = "";
   }
 });
+
+// ---------------- 모바일 키보드 대응 ----------------
+// 앱 높이가 100lvh로 고정돼 있어서, 키보드가 올라오면 iOS는 창 전체를 위로 밀어
+// 올린다(상단이 잘리고 전송 버튼이 화면 밖으로 나간다). visualViewport로 키보드가
+// 가린 높이를 실측해 --kb에 넣으면 앱이 그만큼 줄어들어, 카카오톡처럼 입력창이
+// 키보드 바로 위에 앉는다. 밀려 올라간 창은 즉시 원위치로 되돌린다.
+const viewport = window.visualViewport;
+if (viewport) {
+  let kbFrame = 0;
+  let kbNow = 0;
+  const syncKeyboard = () => {
+    cancelAnimationFrame(kbFrame);
+    kbFrame = requestAnimationFrame(() => {
+      const gap = window.innerHeight - viewport.height - viewport.offsetTop;
+      // 80px 미만은 키보드가 아니라 브라우저 UI·확대 오차 — 무시한다
+      const kb = gap > 80 ? Math.round(gap) : 0;
+      if (kb !== kbNow) {
+        kbNow = kb;
+        document.documentElement.style.setProperty("--kb", `${kb}px`);
+        // 줄어든 높이에 맞춰 대화는 마지막 말풍선이 계속 보이게 한다
+        const chat = app.querySelector("[data-chat-scroll]");
+        if (chat) chat.scrollTop = chat.scrollHeight;
+      }
+      if (window.scrollY !== 0) window.scrollTo(0, 0);
+    });
+  };
+  viewport.addEventListener("resize", syncKeyboard);
+  viewport.addEventListener("scroll", syncKeyboard);
+}
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("./sw.js").catch(() => {});
