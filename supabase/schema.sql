@@ -26,7 +26,7 @@ create table if not exists public.profiles (
   color text not null default '#b06a92',
   emoji text not null default '',
   avatar_url text,
-  is_public boolean not null default false,
+  is_public boolean not null default true,   -- migration-12: 새 계정은 기본 공개
   notif boolean not null default true,
   bio text not null default '' check (char_length(bio) <= 80),
   created_at timestamptz not null default now(),
