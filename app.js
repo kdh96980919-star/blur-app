@@ -3539,10 +3539,13 @@ avatarInput.addEventListener("change", async () => {
 // 줄이면, 카카오톡처럼 입력창이 자판 바로 위에 앉는다.
 //
 // 측정은 두 겹이다.
-//  ① visualViewport — 정상 경로. 키보드가 가린 높이 = `innerHeight - vv.height - vv.offsetTop`.
-//     ⚠️ offsetTop을 꼭 빼야 한다. iOS는 스크롤이 없는 화면에서 입력창을 보여주려고
-//     화면 자체를 offsetTop만큼 밀어 올리는데, 그만큼은 이미 해결된 몫이다. 안 빼면
-//     앱이 필요보다 더 줄어들어 자판과 앱 사이에 그만큼 빈 띠가 생긴다.
+//  ① visualViewport — 정상 경로. 키보드 높이 = `innerHeight - vv.height`.
+//     iOS는 여기에 더해 화면 자체를 offsetTop만큼 **밀어 올려서** 입력창을 보이게
+//     하기도 한다. 그 밀어 올림은 스크롤 한 번에 풀려 버리는 임시방편이라
+//     (대화창에서 위로 스크롤하면 입력창이 사라지던 원인) 거기에 기대지 않는다.
+//     앱은 키보드 높이만큼 확실히 줄이고, 밀어 올린 만큼은 `--vv-top`으로 도로
+//     내려서 상쇄한다. 상쇄를 빼먹으면 그만큼 위가 잘리고 자판과 앱 사이에 빈 띠가
+//     생긴다(v34에서 실제로 그랬다).
 //  ② 폴백 — iOS 홈 화면 앱에서는 키보드가 떠도 visualViewport가 전혀 반응하지 않는
 //     경우가 있다(특히 코드로 focus를 옮겼을 때 — '댓글 탭 → 답글'이 그 경로).
 //     밀어 올리지도, 줄지도 않았다면 지난번 실측값으로 대신 밀어 올린다.
@@ -3583,17 +3586,20 @@ if (viewport) {
   const syncKeyboard = () => {
     cancelAnimationFrame(kbFrame);
     kbFrame = requestAnimationFrame(() => {
-      const gap = window.innerHeight - viewport.height - viewport.offsetTop;
+      const gap = window.innerHeight - viewport.height;
       // 60px 미만은 키보드가 아니라 브라우저 UI·확대 오차 — 무시한다
       kbMeasured = gap > 60 ? Math.round(gap) : 0;
       if (viewportReacted()) {
         // 뷰포트가 반응했으면 폴백은 물러난다
         kbFallback = false;
-        // 키보드 전체 높이를 기억해 둔다 — 위 ②번 폴백이 쓸 값
-        const full = Math.round(window.innerHeight - viewport.height);
-        if (full > 60) { try { localStorage.setItem(KB_MEMO, String(full)); } catch { /* 사파리 비공개 모드 */ } }
+        // 실측 키보드 높이를 기억해 둔다 — 위 ②번 폴백이 쓸 값
+        if (kbMeasured) { try { localStorage.setItem(KB_MEMO, String(kbMeasured)); } catch { /* 사파리 비공개 모드 */ } }
       }
       if (!kbFallback) applyKeyboardInset(kbMeasured);
+      // iOS가 밀어 올린 만큼 도로 내린다. 키보드가 떠 있을 때만 — 사파리에서 손가락으로
+      // 확대했을 때의 offsetTop까지 따라가면 화면이 엉뚱하게 움직인다.
+      const pushed = (kbMeasured || kbFallback) ? Math.round(viewport.offsetTop) : 0;
+      document.documentElement.style.setProperty("--vv-top", `${pushed}px`);
       syncKeyboardOpen();
     });
   };

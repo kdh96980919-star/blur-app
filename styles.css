@@ -41,6 +41,9 @@
   /* 홈 주제가 두 줄 이상일 때 늘어난 높이 — app.js의 syncHubExtra가 실측해 넣는다 */
   --hub-extra: 0px;
 
+  /* iOS가 키보드 때문에 화면을 밀어 올린 양 — 그만큼 도로 내려 제자리에 둔다 */
+  --vv-top: 0px;
+
   /* 사진 카드 크기 계산의 기준이 되는 '무대' 높이 = 폰이 실제로 차지하는 높이.
      브라우저 프리뷰에선 폰 목업이 --phone-h로 잘리므로 그 상한을 함께 반영해야
      한다(안 그러면 큰 화면에서 카드가 목업 밖으로 넘친다). 전체화면 PWA에는
@@ -122,8 +125,11 @@ button:focus {
 
 #app {
   width: 100vw;
-  /* 키보드가 오르내릴 때 딱딱하게 튀지 않도록 짧게 이어준다 */
+  /* 키보드가 오르내릴 때 딱딱하게 튀지 않도록 짧게 이어준다.
+     transform은 이어주지 않는다 — iOS가 밀어 올린 것을 같은 프레임에 상쇄해야
+     화면이 움직이지 않는다(늦게 따라오면 그게 곧 깜빡임이다) */
   transition: min-height .18s ease;
+  transform: translateY(var(--vv-top));
   min-height: calc(var(--app-h) - var(--kb));
   display: grid;
   place-items: center;
@@ -2366,13 +2372,15 @@ input.bg-swatch {
     overflow: auto;
   }
 
+  /* 데스크톱 프리뷰(폰 목업)에서도 키보드 몫은 빼둔다 — 아이패드처럼 화면이 넓으면서
+     소프트 키보드를 쓰는 기기가 이 분기에 들어온다 */
   #app {
-    min-height: calc(100svh - 80px);
+    min-height: calc(100svh - 80px - var(--kb));
   }
 
   .phone {
     width: var(--phone-w);
-    height: min(var(--phone-h), calc(100svh - 80px));
+    height: min(var(--phone-h), calc(100svh - 80px - var(--kb)));
     border-radius: 44px;
   }
 }
