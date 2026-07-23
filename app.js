@@ -152,6 +152,7 @@ let toastTimer = null;
 let handleCheckTimer = null;
 let lastMainSig = "";
 let lastOvSig = "";
+let lastViewerPost = "";
 
 // 데모(localStorage) 시절 데이터 정리 — 이제 데이터는 서버에 있음
 localStorage.removeItem(LEGACY_STORAGE_KEY);
@@ -839,8 +840,12 @@ function render() {
   const ovSig = overlaySignature();
   const mainSame = mainSig === lastMainSig;
   const ovSame = ovSig === lastOvSig;
+  // 뷰어가 이미 열린 채로 댓글만 토글될 때 확대 애니메이션이 다시 재생돼 사진이
+  // 튀는 문제 — 같은 사진 뷰어가 유지되는 재렌더에선 zoom-in을 끈다
+  const viewerSame = state.overlays.viewerPost && state.overlays.viewerPost === lastViewerPost;
   lastMainSig = mainSig;
   lastOvSig = ovSig;
+  lastViewerPost = state.overlays.viewerPost;
   const content = state.auth === "loading"
     ? loadingView()
     : state.auth === "offline"
@@ -850,7 +855,7 @@ function render() {
         : state.auth === "setup"
           ? setupView()
           : appView();
-  app.innerHTML = `<div class="phone${mainSame ? " no-anim-main" : ""}${ovSame ? " no-anim-ov" : ""}">${content}${offlineBanner()}${busyView()}${toastView()}</div>`;
+  app.innerHTML = `<div class="phone${mainSame ? " no-anim-main" : ""}${ovSame ? " no-anim-ov" : ""}${viewerSame ? " no-anim-viewer" : ""}">${content}${offlineBanner()}${busyView()}${toastView()}</div>`;
   if (mainSame) {
     [...app.querySelectorAll(".screen-scroll")].forEach((el, i) => {
       if (scrolls[i]) el.scrollTop = scrolls[i];
@@ -1759,7 +1764,9 @@ function commentsSheet() {
   const post = state.posts.find((p) => p.id === state.overlays.commentsFor);
   if (!post) return "";
   const comments = postComments(post);
-  return `<div>
+  // 사진 확대 뷰어 위에서 열릴 땐 뷰어(z-index 180)보다 위로 올려야 보인다
+  const overViewer = state.overlays.viewerPost === post.id;
+  return `<div class="${overViewer ? "over-viewer" : ""}">
     <div class="dim" data-action="close-comments"></div>
     <section class="sheet">
       <div class="handle"></div>
@@ -1904,16 +1911,18 @@ function viewerView() {
   const hubTopic = state.hubTopics[post.hubDate] || "";
   const mine = post.authorId === "me";
   const count = (post.comments || []).length;
-  return `<section class="viewer" data-action="close-viewer">
+  // 댓글이 열리면 사진을 위로 축소하고(with-comments) 그 아래로 댓글 시트가 올라온다
+  const commentsOpen = state.overlays.commentsFor === post.id;
+  return `<section class="viewer${commentsOpen ? " with-comments" : ""}" data-action="close-viewer">
     <div class="viewer-zoom">
       ${mediaFrame(post, "large", { forceReveal: true, noReveal: true })}
-      <div style="text-align:center">
+      <div class="viewer-meta" style="text-align:center">
         <div class="viewer-date">${escapeHtml(dateLabel)} 허브</div>
         <div class="viewer-topic">${escapeHtml(hubTopic)}</div>
       </div>
       <button class="btn secondary viewer-comments" data-action="open-comments" data-post="${post.id}">${icon("message", 15)}<span style="margin-left:7px">댓글${count ? ` ${count}` : ""}</span></button>
       ${mine && !post.archived ? `<button class="btn secondary viewer-archive" data-action="archive-post" data-post="${post.id}">${icon("trash", 15)}<span style="margin-left:7px">프로필에서 삭제 (보관으로 이동)</span></button>` : ""}
-      ${!mine ? `<button class="text-link" style="color:var(--danger)" data-action="open-report" data-type="post" data-target="${post.id}">${icon("flag", 13)}<span style="margin-left:6px">게시물 신고</span></button>` : ""}
+      ${!mine ? `<button class="text-link viewer-report" style="color:var(--danger)" data-action="open-report" data-type="post" data-target="${post.id}">${icon("flag", 13)}<span style="margin-left:6px">게시물 신고</span></button>` : ""}
     </div>
   </section>`;
 }
@@ -2082,14 +2091,15 @@ function chatListHtml() {
         ${threads.length ? `<div class="row-list">${threads.map((t) => {
           const person = personById(t.handle);
           if (!person) return "";
-          return `<button class="person-row" style="cursor:pointer;text-align:left" data-action="open-chat" data-user="${t.handle}">
-            ${avatar(person)}
+          // 사진·이름 = 프로필로 / 미리보기·시간 = 대화 열기 (친구 페이지처럼)
+          return `<div class="person-row">
+            <button style="background:transparent;padding:0;flex:none;cursor:pointer" aria-label="${escapeHtml(person.name)} 프로필 보기" data-action="open-friend-profile" data-user="${t.handle}">${avatar(person)}</button>
             <div class="person-main">
-              <div class="person-name">${escapeHtml(person.name)}</div>
-              <div class="person-id" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.last ? escapeHtml(`${t.last.from === "me" ? "나: " : ""}${t.last.body}`) : ""}</div>
+              <button style="background:transparent;padding:0;text-align:left;cursor:pointer;display:block;max-width:100%" data-action="open-friend-profile" data-user="${t.handle}"><div class="person-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(person.name)}</div></button>
+              <button style="background:transparent;padding:0;text-align:left;cursor:pointer;display:block;width:100%;max-width:100%" data-action="open-chat" data-user="${t.handle}"><div class="person-id" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.last ? escapeHtml(`${t.last.from === "me" ? "나: " : ""}${t.last.body}`) : ""}</div></button>
             </div>
-            ${t.unread ? `<span class="unread-badge">${t.unread}</span>` : `<span class="person-id">${timeAgo(t.last?.at)}</span>`}
-          </button>`;
+            <button style="background:transparent;padding:0;flex:none;cursor:pointer" aria-label="대화 열기" data-action="open-chat" data-user="${t.handle}">${t.unread ? `<span class="unread-badge">${t.unread}</span>` : `<span class="person-id">${timeAgo(t.last?.at)}</span>`}</button>
+          </div>`;
         }).join("")}</div>` : `<div class="empty">아직 대화가 없어요<br>친구 프로필에서 메시지를 시작해보세요</div>`}
       </section>
       ${otherFriends.length ? `<section class="section">
@@ -2097,14 +2107,15 @@ function chatListHtml() {
         <div class="row-list">${otherFriends.map((id) => {
           const person = personById(id);
           if (!person) return "";
-          return `<button class="person-row" style="cursor:pointer;text-align:left" data-action="open-chat" data-user="${id}">
-            ${avatar(person)}
-            <div class="person-main">
+          // 사진·이름 = 프로필로 / 메시지 아이콘 = 대화 시작 (친구 페이지처럼)
+          return `<div class="person-row">
+            <button style="background:transparent;padding:0;flex:none;cursor:pointer" aria-label="${escapeHtml(person.name)} 프로필 보기" data-action="open-friend-profile" data-user="${id}">${avatar(person)}</button>
+            <button class="person-main" style="background:transparent;padding:0;text-align:left;cursor:pointer" data-action="open-friend-profile" data-user="${id}">
               <div class="person-name">${escapeHtml(person.name)}</div>
               <div class="person-id">@${escapeHtml(person.id)}</div>
-            </div>
-            ${icon("message", 16)}
-          </button>`;
+            </button>
+            <button style="background:transparent;padding:0;flex:none;cursor:pointer" aria-label="대화 시작" data-action="open-chat" data-user="${id}">${icon("message", 16)}</button>
+          </div>`;
         }).join("")}</div>
       </section>` : ""}
     </div>`;
@@ -2119,13 +2130,13 @@ function chatRoomView() {
   return `<section class="overlay">
     <div class="topbar" style="padding-bottom:10px;border-bottom:1px solid rgba(74,53,64,.08)">
       <button class="ghost-icon" data-action="close-chat">${icon("arrow-left", 17)}</button>
-      <div style="display:flex;align-items:center;gap:9px;min-width:0">
+      <button style="display:flex;align-items:center;gap:9px;min-width:0;background:transparent;padding:0;cursor:pointer" aria-label="${escapeHtml(other.name)} 프로필 보기" data-action="open-friend-profile" data-user="${other.id}">
         ${avatar(other)}
-        <div style="min-width:0">
+        <div style="min-width:0;text-align:left">
           <div class="person-name">${escapeHtml(other.name)}</div>
           <div class="person-id">@${escapeHtml(other.id)}</div>
         </div>
-      </div>
+      </button>
       <div style="width:36px"></div>
     </div>
     <div class="chat-scroll" data-chat-scroll>
@@ -2439,7 +2450,8 @@ function handleAction(action, el) {
     case "close-public-profile":
       return update((s) => { s.overlays.publicUser = ""; });
     case "open-friend-profile":
-      return update((s) => { closeAllProfiles(s); s.overlays.friendUser = id; });
+      // 대화방에서 열 때 채팅 오버레이를 닫아야 프로필이 그 위로 보인다
+      return update((s) => { closeAllProfiles(s); s.overlays.chatWith = ""; s.overlays.friendUser = id; });
     case "close-friend-profile":
       return update((s) => { s.overlays.friendUser = ""; });
     case "send-request":
@@ -2505,7 +2517,7 @@ function handleAction(action, el) {
     case "finish-leave":
       return state = defaultState(), state.auth = "welcome", render();
     case "close-viewer":
-      return update((s) => { s.overlays.viewerPost = ""; });
+      return update((s) => { s.overlays.viewerPost = ""; s.overlays.commentsFor = ""; });
     case "retry-boot":
       state.auth = "loading";
       render();

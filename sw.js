@@ -1,4 +1,4 @@
-const CACHE_NAME = "blur-service-v39";
+const CACHE_NAME = "blur-service-v40";
 const ASSETS = [
   "./",
   "./index.html",

@@ -196,6 +196,12 @@ button:focus {
   animation: none;
 }
 
+/* 뷰어가 이미 열린 채 댓글만 여닫을 땐 사진 확대 애니메이션을 다시 재생하지 않는다
+   (재생되면 댓글 열 때마다 사진이 확 튄다) */
+.phone.no-anim-viewer .viewer-zoom {
+  animation: none;
+}
+
 .screen-scroll {
   flex: 1;
   overflow-y: auto;
@@ -1530,6 +1536,16 @@ button.room-bio-empty {
   z-index: 186;
 }
 
+/* 댓글 시트가 확대 뷰어(z-index 180) 위에서 열릴 때 — 사진은 위에 남고
+   댓글이 그 아래에서 올라온다 (인스타 방식) */
+.over-viewer .dim {
+  z-index: 188;
+}
+
+.over-viewer .sheet {
+  z-index: 189;
+}
+
 /* 알림 시트 — 핸들을 위로 끌거나 탭하면 전체 화면으로 확장 */
 .notif-grab {
   padding: 6px 0 16px;
@@ -2252,6 +2268,32 @@ input.bg-swatch {
   background: var(--glass-strong);
   color: var(--ink);
   box-shadow: var(--lift-sm), var(--hi);
+}
+
+/* 댓글이 열리면 사진을 위로 올려 작게, 날짜·주제·버튼은 감춘다
+   (그 자리에 댓글 시트가 아래에서 올라와 사진 아래로 붙는다) */
+.viewer.with-comments {
+  justify-content: flex-start;
+  padding-top: calc(26px + env(safe-area-inset-top, 0px));
+}
+
+.viewer.with-comments .viewer-zoom {
+  gap: 0;
+  align-items: center;
+}
+
+.viewer.with-comments .media-frame {
+  height: 34vh;
+  width: auto;
+  max-width: 100%;
+  align-self: center;
+}
+
+.viewer.with-comments .viewer-meta,
+.viewer.with-comments .viewer-comments,
+.viewer.with-comments .viewer-archive,
+.viewer.with-comments .viewer-report {
+  display: none;
 }
 
 .archive-actions {
