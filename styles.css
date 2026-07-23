@@ -1700,9 +1700,18 @@ button.room-bio-empty {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 10px;
   padding: 16px 18px;
   overscroll-behavior: contain;
+}
+
+/* 카카오톡처럼 대화를 아래에 붙인다 — 메시지가 적어도 입력창(키보드) 바로 위에
+   놓여 방금 나눈 대화가 바로 보인다. margin-top:auto는 넘칠 땐 0으로 접혀
+   위쪽 잘림 없이 정상 스크롤된다(justify-content:flex-end의 잘림 버그 회피). */
+.chat-msgs {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .dm-row {

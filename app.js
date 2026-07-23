@@ -2140,11 +2140,13 @@ function chatRoomView() {
       <div style="width:36px"></div>
     </div>
     <div class="chat-scroll" data-chat-scroll>
-      ${msgs.length ? msgs.map((m) => `
+      <div class="chat-msgs">
+        ${msgs.length ? msgs.map((m) => `
         <div class="dm-row ${m.from === "me" ? "mine" : ""}">
           ${m.from === "me" ? "" : avatar(other)}
           <div class="dm-bubble"${m.from === "me" && m.id ? ` data-action="dm-actions" data-msg="${m.id}" style="cursor:pointer" title="탭해서 삭제"` : ""}>${escapeHtml(m.body)}</div>
         </div>`).join("") : `<div class="empty">첫 메시지를 보내보세요</div>`}
+      </div>
     </div>
     <form class="chat-input-row" data-action="send-dm">
       <input id="dm-input" class="input pill" maxlength="500" placeholder="메시지 보내기" autocomplete="off">
