@@ -2244,6 +2244,7 @@ input.bg-swatch {
   color: var(--ink);
 }
 
+.viewer-comments,
 .viewer-archive {
   margin: 0 auto;
   min-height: 42px;

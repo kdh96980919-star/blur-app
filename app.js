@@ -1903,6 +1903,7 @@ function viewerView() {
   const dateLabel = `${post.hubDate.slice(5, 7)}. ${post.hubDate.slice(8, 10)}`;
   const hubTopic = state.hubTopics[post.hubDate] || "";
   const mine = post.authorId === "me";
+  const count = (post.comments || []).length;
   return `<section class="viewer" data-action="close-viewer">
     <div class="viewer-zoom">
       ${mediaFrame(post, "large", { forceReveal: true, noReveal: true })}
@@ -1910,6 +1911,7 @@ function viewerView() {
         <div class="viewer-date">${escapeHtml(dateLabel)} 허브</div>
         <div class="viewer-topic">${escapeHtml(hubTopic)}</div>
       </div>
+      <button class="btn secondary viewer-comments" data-action="open-comments" data-post="${post.id}">${icon("message", 15)}<span style="margin-left:7px">댓글${count ? ` ${count}` : ""}</span></button>
       ${mine && !post.archived ? `<button class="btn secondary viewer-archive" data-action="archive-post" data-post="${post.id}">${icon("trash", 15)}<span style="margin-left:7px">프로필에서 삭제 (보관으로 이동)</span></button>` : ""}
       ${!mine ? `<button class="text-link" style="color:var(--danger)" data-action="open-report" data-type="post" data-target="${post.id}">${icon("flag", 13)}<span style="margin-left:6px">게시물 신고</span></button>` : ""}
     </div>
