@@ -1778,12 +1778,15 @@ function commentsSheet() {
         ${comments.length ? comments.map((c) => {
           const person = personById(c.by);
           const mine = c.by === "me";
+          // 남의 댓글은 이름·아바타를 탭하면 그 사람의 프로필로 (공개는 지난 허브, 비공개는 잠금 시트)
+          const openAttr = mine ? "" : `data-action="open-person" data-user="${escapeHtml(person?.id || "")}"`;
           return `<div class="comment-item">
-            ${avatar(person)}
+            ${mine ? avatar(person) : `<button style="background:transparent;padding:0;border:0;flex:none;cursor:pointer" aria-label="${escapeHtml(person?.name || "")} 프로필 보기" ${openAttr}>${avatar(person)}</button>`}
             <div class="comment-body">
               <div class="comment-head">
-                <span class="comment-author">${escapeHtml(person?.name || "알 수 없음")}</span>
-                <span class="comment-handle">@${escapeHtml(person?.id || "")}</span>
+                ${mine
+                  ? `<span class="comment-author">${escapeHtml(person?.name || "알 수 없음")}</span><span class="comment-handle">@${escapeHtml(person?.id || "")}</span>`
+                  : `<button style="background:transparent;padding:0;border:0;cursor:pointer;display:inline-flex;align-items:baseline;gap:6px;min-width:0" ${openAttr}><span class="comment-author">${escapeHtml(person?.name || "알 수 없음")}</span><span class="comment-handle">@${escapeHtml(person?.id || "")}</span></button>`}
                 ${mine && c.id ? `<button class="comment-del" aria-label="댓글 삭제" data-action="delete-comment" data-comment="${c.id}" data-post="${post.id}">${icon("x", 12)}</button>` : ""}
                 ${!mine && c.id ? `<button class="comment-del" aria-label="댓글 신고" data-action="open-report" data-type="comment" data-target="${c.id}">${icon("flag", 11)}</button>` : ""}
               </div>
@@ -3111,7 +3114,10 @@ function openPerson(userId) {
   update((s) => {
     s.overlays.publicUser = "";
     s.overlays.privateUser = "";
-    if (user.public) s.overlays.publicUser = userId;
+    s.overlays.friendUser = "";
+    // 이미 친구면 친구 프로필(지난 허브·메시지)로, 아니면 공개는 프로필·비공개는 잠금 시트로
+    if (s.friends.includes(userId)) s.overlays.friendUser = userId;
+    else if (user.public) s.overlays.publicUser = userId;
     else s.overlays.privateUser = userId;
   });
 }
