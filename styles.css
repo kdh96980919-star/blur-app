@@ -2269,6 +2269,17 @@ input.bg-swatch {
   color: var(--ink);
 }
 
+/* 지난 허브 사진에 남긴 글(글 남기기) — 허브와 댓글 버튼 사이에 놓인다 */
+.viewer-caption {
+  max-width: 300px;
+  margin: -4px auto 0;
+  text-align: center;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink);
+  word-break: break-word;
+}
+
 .viewer-comments,
 .viewer-archive {
   margin: 0 auto;
@@ -2299,6 +2310,7 @@ input.bg-swatch {
 }
 
 .viewer.with-comments .viewer-meta,
+.viewer.with-comments .viewer-caption,
 .viewer.with-comments .viewer-comments,
 .viewer.with-comments .viewer-archive,
 .viewer.with-comments .viewer-report {

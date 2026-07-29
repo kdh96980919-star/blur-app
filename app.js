@@ -1923,6 +1923,7 @@ function viewerView() {
         <div class="viewer-date">${escapeHtml(dateLabel)} 허브</div>
         <div class="viewer-topic">${escapeHtml(hubTopic)}</div>
       </div>
+      ${post.caption ? `<div class="viewer-caption">${escapeHtml(post.caption)}</div>` : ""}
       <button class="btn secondary viewer-comments" data-action="open-comments" data-post="${post.id}">${icon("message", 15)}<span style="margin-left:7px">댓글${count ? ` ${count}` : ""}</span></button>
       ${mine && !post.archived ? `<button class="btn secondary viewer-archive" data-action="archive-post" data-post="${post.id}">${icon("trash", 15)}<span style="margin-left:7px">프로필에서 삭제 (보관으로 이동)</span></button>` : ""}
       ${!mine ? `<button class="text-link viewer-report" style="color:var(--danger)" data-action="open-report" data-type="post" data-target="${post.id}">${icon("flag", 13)}<span style="margin-left:6px">게시물 신고</span></button>` : ""}
@@ -3620,7 +3621,13 @@ if (viewport) {
       if (!kbFallback) applyKeyboardInset(kbMeasured);
       // iOS가 밀어 올린 만큼 도로 내린다. 키보드가 떠 있을 때만 — 사파리에서 손가락으로
       // 확대했을 때의 offsetTop까지 따라가면 화면이 엉뚱하게 움직인다.
-      const pushed = (kbMeasured || kbFallback) ? Math.round(viewport.offsetTop) : 0;
+      // ⚠️ iOS는 뷰포트 높이를 줄이지 않고 offsetTop만 올려 입력창을 보이게 하기도 한다
+      //   (대화창에서 흔함). 그 땐 kbMeasured=0·폴백 없음이라 예전엔 상쇄를 안 해서
+      //   상단(대화방 프로필)이 화면 위로 잘려 사라졌다. 터치 기기에서 입력창에 포커스가
+      //   있으면(자판이 떠 있다는 뜻) offsetTop을 항상 상쇄한다 — 데스크톱 핀치줌은
+      //   coarse pointer도 포커스도 아니라 영향 없다.
+      const typingNow = canGuessKeyboard && document.activeElement?.matches?.(TYPING_FIELD);
+      const pushed = (kbMeasured || kbFallback || typingNow) ? Math.round(viewport.offsetTop) : 0;
       document.documentElement.style.setProperty("--vv-top", `${pushed}px`);
       syncKeyboardOpen();
     });
