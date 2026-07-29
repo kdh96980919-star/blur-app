@@ -502,11 +502,14 @@ function personById(id) {
 }
 
 function normalizeId(value) {
-  return value.toLowerCase().replace(/^@/, "").replace(/[^a-z0-9_]/g, "").slice(0, 16);
+  return value.toLowerCase().replace(/^@/, "").replace(/[^a-z0-9]/g, "").slice(0, 16);
 }
 
+// 아이디는 영문 소문자와 숫자만, 4-16자.
+// ⚠️ 언더바를 빼는 건 '앞으로 만들 아이디'에만 적용된다 — 아래 멘션·답글 정규식은
+// 예전에 `_`로 만든 아이디를 여전히 알아봐야 하므로 그대로 둔다.
 function validId(value) {
-  return /^[a-z0-9_]{3,16}$/.test(value);
+  return /^[a-z0-9]{4,16}$/.test(value);
 }
 
 // 아이디 중복 검사 — 서버 RPC를 디바운스 호출, 결과는 signup.avail / edit.avail에 저장.
@@ -857,6 +860,52 @@ function patchPhone(className, parts) {
   phoneParts.length = parts.length;
 }
 
+// ---------------- 화면 전환 (카카오톡식 가로 슬라이드) ----------------
+// 지금까지는 새 화면이 아래에서 떠오르기만 했다(riseIn). 그래서 탭을 바꾸거나
+// 대화방을 열면 '옆으로 넘어간다'가 아니라 '다시 생긴다'로 보였다.
+// 여기서는 나가는 화면과 들어오는 화면을 한 몸으로 옆으로 민다.
+// 나가는 화면은 patchPhone이 이미 DOM에서 떼어냈으므로, 유령으로 되붙여 같이 민 뒤 버린다.
+const TAB_ORDER = ["home", "all", "chat", "friends", "my"];
+const NAV_MS = 280; // styles.css의 --nav-ms와 같아야 한다
+let lastTab = "";
+
+function phoneEl() {
+  const first = app.firstElementChild;
+  return first && first.classList.contains("phone") ? first : null;
+}
+
+// 겹쳐 쌓이는 '한 장짜리 화면'들 — 시트·딤은 여기 포함되지 않는다.
+// 밀려나가는 중인 유령도 뺀다 — 전환 중에 실시간 갱신이 끼어들면 유령을 현재 화면으로
+// 착각해 엉뚱한 방향으로 한 번 더 밀 수 있다.
+function navPages() {
+  const phone = phoneEl();
+  if (!phone) return [];
+  return [...phone.children].filter((el) =>
+    (el.classList.contains("screen") || el.classList.contains("overlay")) && !el.classList.contains("nav-ghost"));
+}
+
+function slidePages(outgoing, incoming, dir, outgoingWasFirst) {
+  const phone = phoneEl();
+  if (!phone) return;
+  // 모션을 끈 사용자에겐 유령을 만들지 않는다 — 애니메이션이 없으면 유령이 그 자리에
+  // 그대로 얹혀 새 화면을 가린 채 280ms를 버틴다
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const ghost = !outgoing.isConnected;
+  if (ghost) outgoing.classList.add("nav-ghost");
+  // 탭 화면이었으면 탭바 앞자리로 되돌린다 — 뒤에 붙이면 유령이 탭바를 덮은 채 같이 밀린다
+  if (ghost) phone.insertBefore(outgoing, outgoingWasFirst ? phone.firstElementChild : null);
+  const out = dir > 0 ? "nav-out-left" : "nav-out-right";
+  const into = dir > 0 ? "nav-in-right" : "nav-in-left";
+  outgoing.classList.add(out);
+  incoming.classList.add(into);
+  setTimeout(() => {
+    // 유령은 버리고, 살아 있던 화면은 표식만 걷어낸다(다음 전환에서 다시 붙어야 하므로)
+    if (ghost) outgoing.remove();
+    else outgoing.classList.remove(out);
+    incoming.classList.remove(into);
+  }, NAV_MS);
+}
+
 function render() {
   const active = document.activeElement;
   const activeField = active && app.contains(active) ? active.dataset.field : "";
@@ -876,6 +925,13 @@ function render() {
   const chatState = oldChat
     ? { top: oldChat.scrollTop, nearBottom: oldChat.scrollHeight - oldChat.scrollTop - oldChat.clientHeight < 140 }
     : null;
+  // 전환 방향은 '쌓인 화면이 늘었나 줄었나'로 정한다 — 늘면 앞으로(오른쪽에서),
+  // 줄면 뒤로(왼쪽에서). 개수가 같으면 탭 순서로 정한다.
+  const oldPages = navPages();
+  const oldPage = oldPages[oldPages.length - 1] || null;
+  const oldPageWasFirst = Boolean(oldPage) && oldPage === phoneEl()?.firstElementChild;
+  const oldPageCount = oldPages.length;
+  const tabDelta = lastTab ? TAB_ORDER.indexOf(state.tab) - TAB_ORDER.indexOf(lastTab) : 0;
   const mainSig = mainSignature();
   const ovSig = overlaySignature();
   const mainSame = mainSig === lastMainSig;
@@ -934,6 +990,13 @@ function render() {
     if (!chatState || chatState.nearBottom) newChat.scrollTop = newChat.scrollHeight;
     else newChat.scrollTop = chatState.top;
   }
+  const newPages = navPages();
+  const newPage = newPages[newPages.length - 1] || null;
+  if (oldPage && newPage && newPage !== oldPage) {
+    const dir = (newPages.length - oldPageCount) || tabDelta;
+    if (dir) slidePages(oldPage, newPage, dir, oldPageWasFirst);
+  }
+  lastTab = state.tab;
   afterRender();
 }
 
@@ -990,12 +1053,12 @@ function welcomeView() {
 function signupIdHintState() {
   const id = normalizeId(state.signup.id);
   const avail = state.signup.avail;
-  if (!id) return { text: "영문 소문자, 숫자, _ 조합 3-16자", cls: "" };
-  if (!validId(id)) return { text: "아이디는 3-16자의 영문/숫자/_만 가능해요", cls: "bad" };
+  if (!id) return { text: "영문 소문자와 숫자로 4-16자", cls: "" };
+  if (!validId(id)) return { text: "아이디는 영문·숫자만, 4자 이상이어야 해요", cls: "bad" };
   if (avail === "checking") return { text: "아이디 확인 중…", cls: "" };
   if (avail === false) return { text: "이미 사용 중인 아이디예요", cls: "bad" };
   if (avail === true) return { text: "사용할 수 있는 아이디예요 · 나만 쓰는 고유한 이름이 돼요", cls: "good" };
-  return { text: "영문 소문자, 숫자, _ 조합 3-16자", cls: "" };
+  return { text: "영문 소문자와 숫자로 4-16자", cls: "" };
 }
 
 function signupEnabled() {
@@ -1279,14 +1342,38 @@ function friendsView() {
   </section>`;
 }
 
+// 인스타그램식 아이디 검색 — 뭐라도 입력하면 섹션을 걷어내고, 걸리는 사람을
+// 입력창 바로 아래에 한 줄로 쭉 세운다. 아이디 앞부분이 맞는 사람이 위로 온다
+// (gab → gab, gab32, gabriel, gabsdkmsd …). 추천 친구뿐 아니라 전체 사용자가 대상.
+function searchResultsHtml(query) {
+  const rank = (u) => {
+    const name = u.name.toLowerCase();
+    if (u.id.startsWith(query)) return 0;
+    if (name.startsWith(query)) return 1;
+    if (u.id.includes(query)) return 2;
+    if (name.includes(query)) return 3;
+    return 9;
+  };
+  const mode = (id) => (state.friends.includes(id) ? "friend" : state.reqs.includes(id) ? "request" : "recommend");
+  const hits = state.people
+    .filter((u) => u.uid !== state.me)
+    .map((u) => ({ u, r: rank(u) }))
+    .filter((x) => x.r < 9)
+    // 같은 순위면 짧은 아이디가 먼저 — 정확히 친 것에 가까운 순서가 된다
+    .sort((a, b) => a.r - b.r || a.u.id.length - b.u.id.length || a.u.id.localeCompare(b.u.id))
+    .slice(0, 30);
+  return `<section class="section">
+    <div class="row-list">${hits.map(({ u }) => personRow(u, mode(u.id))).join("")
+      || `<div class="empty">검색 결과가 없어요</div>`}</div>
+  </section>`;
+}
+
 // 검색 결과 영역만 따로 그림 — 타이핑 중에는 이 영역만 부분 갱신 (입력창은 건드리지 않음)
 function friendsListHtml() {
   const query = state.search.trim().toLowerCase();
-  const matches = (u) => !query || u.name.toLowerCase().includes(query) || u.id.includes(query);
-  const friendUsers = state.friends
-    .map((id) => personById(id))
-    .filter((u) => u && matches(u));
-  const recUsers = state.recs
+  if (query) return searchResultsHtml(query);
+  const friendUsers = state.friends.map((id) => personById(id)).filter(Boolean);
+  const recsShown = state.recs
     .map((id) => {
       const u = personById(id);
       if (!u) return null;
@@ -1296,9 +1383,9 @@ function friendsListHtml() {
         : (mutual ? `함께 아는 친구 ${mutual}명` : "");
       return { ...u, mutual: label };
     })
-    .filter((u) => u && matches(u));
-  const recsShown = query ? recUsers : recUsers.slice(0, 5);
-  const contactCard = query ? "" : `<section class="section">
+    .filter(Boolean)
+    .slice(0, 5);
+  return `<section class="section">
       <div class="contact-find">
         <div class="contact-find-title">연락처로 친구 찾기</div>
         <div class="contact-find-sub">${state.myPhoneSet
@@ -1309,18 +1396,17 @@ function friendsListHtml() {
           <button class="btn secondary" data-action="open-phone">${state.myPhoneSet ? "내 번호 변경" : "내 번호 등록"}</button>
         </div>
       </div>
-    </section>`;
-  return `${contactCard}${state.reqs.length ? `<section class="section">
+    </section>${state.reqs.length ? `<section class="section">
       <h2 class="section-title">받은 친구 요청</h2>
       <div class="row-list">${state.reqs.map((id) => personRow(personById(id), "request")).join("")}</div>
     </section>` : ""}
     <section class="section">
-      <h2 class="section-title">${query ? "사용자 검색" : "추천 친구"}</h2>
-      <div class="row-list">${recsShown.map((u) => personRow(u, "recommend")).join("") || `<div class="empty">${query ? "검색 결과가 없어요" : "추천할 친구를 찾는 중이에요"}</div>`}</div>
+      <h2 class="section-title">추천 친구</h2>
+      <div class="row-list">${recsShown.map((u) => personRow(u, "recommend")).join("") || `<div class="empty">추천할 친구를 찾는 중이에요</div>`}</div>
     </section>
     <section class="section">
       <h2 class="section-title">내 친구</h2>
-      <div class="row-list">${friendUsers.map((u) => personRow(u, "friend")).join("") || `<div class="empty">검색 결과가 없어요</div>`}</div>
+      <div class="row-list">${friendUsers.map((u) => personRow(u, "friend")).join("") || `<div class="empty">아직 친구가 없어요</div>`}</div>
     </section>`;
 }
 
@@ -1347,7 +1433,7 @@ function personRow(user, mode) {
       </button>
       ${sent
         ? `<button class="mini-btn ghost" data-action="cancel-request" data-user="${user.id}">요청 취소</button>`
-        : `<button class="act-btn add" aria-label="친구 추가" title="친구 추가" data-action="send-request" data-user="${user.id}">${icon("plus", 15)}</button>`}
+        : `<button class="mini-btn" data-action="send-request" data-user="${user.id}">친구 요청</button>`}
     </div>`;
   }
   return `<div class="person-row">
@@ -1824,19 +1910,27 @@ function commentsSheet() {
           const mine = c.by === "me";
           // 남의 댓글은 이름·아바타를 탭하면 그 사람의 프로필로 (공개는 지난 허브, 비공개는 잠금 시트)
           const openAttr = mine ? "" : `data-action="open-person" data-user="${escapeHtml(person?.id || "")}"`;
-          return `<div class="comment-item">
+          const item = `<div class="comment-item">
             ${mine ? avatar(person) : `<button style="background:transparent;padding:0;border:0;flex:none;cursor:pointer" aria-label="${escapeHtml(person?.name || "")} 프로필 보기" ${openAttr}>${avatar(person)}</button>`}
             <div class="comment-body">
               <div class="comment-head">
                 ${mine
                   ? `<span class="comment-author">${escapeHtml(person?.name || "알 수 없음")}</span><span class="comment-handle">@${escapeHtml(person?.id || "")}</span>`
                   : `<button style="background:transparent;padding:0;border:0;cursor:pointer;display:inline-flex;align-items:baseline;gap:6px;min-width:0" ${openAttr}><span class="comment-author">${escapeHtml(person?.name || "알 수 없음")}</span><span class="comment-handle">@${escapeHtml(person?.id || "")}</span></button>`}
-                ${mine && c.id ? `<button class="comment-del" aria-label="댓글 삭제" data-action="delete-comment" data-comment="${c.id}" data-post="${post.id}">${icon("x", 12)}</button>` : ""}
                 ${!mine && c.id ? `<button class="comment-del" aria-label="댓글 신고" data-action="open-report" data-type="comment" data-target="${c.id}">${icon("flag", 11)}</button>` : ""}
               </div>
               <div class="comment-bubble${mine ? "" : " replyable"}" ${mine ? "" : `data-action="reply-comment" data-handle="${escapeHtml(person?.id || "")}" title="답글 달기"`}>${commentHtml(c.text)}</div>
             </div>
           </div>`;
+          // 내 댓글은 오른쪽에서 왼쪽으로 밀면 삭제 상자가 나온다 (x 버튼 대신).
+          // 드래그를 직접 처리하지 않고 가로 스크롤 스냅에 맡긴다 — iOS 관성·고무줄이
+          // 공짜로 따라오고, 손을 떼면 열림/닫힘 둘 중 하나에 정확히 멈춘다.
+          return mine && c.id
+            ? `<div class="swipe-row">
+                <div class="swipe-main">${item}</div>
+                <button class="swipe-del" data-action="delete-comment" data-comment="${c.id}" data-post="${post.id}">삭제</button>
+              </div>`
+            : item;
         }).join("") : `<div class="empty" style="min-height:80px">아직 댓글이 없어요</div>`}
       </div>
       <form class="cinput" data-action="send-comment">
@@ -2043,6 +2137,14 @@ function timeAgo(at) {
   return `${Math.floor(diff / 86400000)}일 전`;
 }
 
+// 말풍선 옆에 붙는 보낸 시각 (카카오톡과 같은 표기)
+function dmTime(at) {
+  if (!at) return "";
+  const d = new Date(at);
+  const h = d.getHours();
+  return `${h < 12 ? "오전" : "오후"} ${h % 12 || 12}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
 function notifSheet() {
   const items = notifItems();
   const full = state.overlays.notifFull;
@@ -2191,8 +2293,9 @@ function chatRoomView() {
       <div class="chat-msgs">
         ${msgs.length ? msgs.map((m) => `
         <div class="dm-row ${m.from === "me" ? "mine" : ""}">
-          ${m.from === "me" ? "" : avatar(other)}
+          ${m.from === "me" ? `<span class="dm-time">${dmTime(m.at)}</span>` : avatar(other)}
           <div class="dm-bubble"${m.from === "me" && m.id ? ` data-action="dm-actions" data-msg="${m.id}" style="cursor:pointer" title="탭해서 삭제"` : ""}>${escapeHtml(m.body)}</div>
+          ${m.from === "me" ? "" : `<span class="dm-time">${dmTime(m.at)}</span>`}
         </div>`).join("") : `<div class="empty">첫 메시지를 보내보세요</div>`}
       </div>
     </div>

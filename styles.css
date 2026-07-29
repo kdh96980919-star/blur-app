@@ -41,6 +41,11 @@
   /* 홈 주제가 두 줄 이상일 때 늘어난 높이 — app.js의 syncHubExtra가 실측해 넣는다 */
   --hub-extra: 0px;
 
+  /* 화면 전환(가로 슬라이드) — app.js의 NAV_MS와 값이 같아야 유령 화면이 제때 치워진다.
+     이징은 아이폰 화면 전환 곡선 — 처음에 빠르게 붙고 끝에서 길게 미끄러진다 */
+  --nav-ms: 280ms;
+  --ease-nav: cubic-bezier(.32, .72, 0, 1);
+
   /* iOS가 키보드 때문에 화면을 밀어 올린 양 — 그만큼 도로 내려 제자리에 둔다 */
   --vv-top: 0px;
 
@@ -203,14 +208,16 @@ button:focus {
 }
 
 /* 클릭 흔들림 방지 — 주 화면이 그대로면 화면 애니메이션을 끄고,
-   오버레이 구성이 그대로면 시트·오버레이 애니메이션을 끈다 */
-.phone.no-anim-main .screen,
+   오버레이 구성이 그대로면 시트·오버레이 애니메이션을 끈다.
+   ⚠️ nav-* 가 붙은 화면은 예외 — 그게 지금 재생 중인 화면 전환의 주인공이다
+   (대화방을 열 때처럼 주 화면은 그대로인데 화면은 옆으로 밀려야 하는 경우). */
+.phone.no-anim-main .screen:not([class*="nav-"]),
 .phone.no-anim-main .welcome-hero,
 .phone.no-anim-main .welcome-auth {
   animation: none;
 }
 
-.phone.no-anim-ov .overlay,
+.phone.no-anim-ov .overlay:not([class*="nav-"]),
 .phone.no-anim-ov .sheet,
 .phone.no-anim-ov .dim,
 .phone.no-anim-ov .viewer-zoom {
@@ -1682,6 +1689,36 @@ button.room-bio-empty {
   font-weight: 600;
 }
 
+/* 밀어서 삭제 — 가로 스크롤 스냅으로 만든다. 자바스크립트 드래그 처리 없이
+   iOS의 관성·고무줄이 그대로 붙고, 손을 떼면 '닫힘'이나 '열림' 한쪽에 정확히 선다.
+   overscroll-behavior-x:contain = 다 밀었을 때 사파리 뒤로가기 제스처로 새지 않게. */
+.swipe-row {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /* 전역 ::-webkit-scrollbar로는 안 잡히는 오버레이 스크롤바까지 */
+}
+
+.swipe-main {
+  flex: 0 0 100%;
+  scroll-snap-align: start;
+  min-width: 0;
+}
+
+.swipe-del {
+  flex: 0 0 66px;
+  scroll-snap-align: end;
+  margin: 0 0 15px 8px;
+  border-radius: 14px;
+  background: #e2574c;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 .comment-del {
   margin-left: auto;
   background: transparent;
@@ -1768,6 +1805,18 @@ button.room-bio-empty {
   color: var(--ink);
   box-shadow: none;
   border-radius: 18px 18px 6px 18px;
+}
+
+/* 보낸 시각 — 카카오톡처럼 말풍선 바깥쪽 아래에 붙는다
+   (내 말풍선은 왼쪽, 상대 말풍선은 오른쪽). 줄바꿈되면 자리가 흐트러지므로 고정. */
+.dm-time {
+  flex: none;
+  align-self: flex-end;
+  padding-bottom: 2px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 300;
+  white-space: nowrap;
 }
 
 .chat-input-row {
@@ -2378,6 +2427,46 @@ input.bg-swatch {
   font-size: 13px;
   text-align: center;
   line-height: 1.7;
+}
+
+/* ── 화면 전환 (카카오톡식 가로 슬라이드) ──
+   나가는 화면과 들어오는 화면이 같은 시간·같은 이징으로 움직여 한 몸처럼 밀린다.
+   transform만 건드린다 — 레이아웃을 다시 계산하지 않아야 자판 뜰 때처럼 버벅이지 않는다.
+   .screen/.overlay의 riseIn보다 뒤에 있어 이 규칙이 이긴다. */
+.nav-in-right {
+  animation: navInRight var(--nav-ms) var(--ease-nav) both;
+}
+
+.nav-in-left {
+  animation: navInLeft var(--nav-ms) var(--ease-nav) both;
+}
+
+.nav-out-left {
+  animation: navOutLeft var(--nav-ms) var(--ease-nav) both;
+}
+
+.nav-out-right {
+  animation: navOutRight var(--nav-ms) var(--ease-nav) both;
+}
+
+@keyframes navInRight {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+
+@keyframes navInLeft {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+
+@keyframes navOutLeft {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-100%); }
+}
+
+@keyframes navOutRight {
+  from { transform: translateX(0); }
+  to   { transform: translateX(100%); }
 }
 
 @keyframes riseIn {
