@@ -130,10 +130,12 @@ button:focus {
 
 #app {
   width: 100vw;
-  /* 키보드가 오르내릴 때 딱딱하게 튀지 않도록 짧게 이어준다.
-     transform은 이어주지 않는다 — iOS가 밀어 올린 것을 같은 프레임에 상쇄해야
-     화면이 움직이지 않는다(늦게 따라오면 그게 곧 깜빡임이다) */
-  transition: min-height .18s ease;
+  /* ⚠️ 높이를 transition으로 이어주면 안 된다(v47까지 그랬고, 그게 떨림의 원인이었다).
+     iOS는 자판이 오르내리는 ~250ms 동안 visualViewport 이벤트를 매 프레임 쏘는데,
+     그때마다 .18s 이징이 새로 시작돼 높이는 늘 180ms 뒤처진다. 반면 아래 transform
+     상쇄는 같은 프레임에 즉시 적용된다 — 위치는 제자리, 높이는 뒤늦게 따라오니
+     그 차이가 곧 흔들림이다. 자판 애니메이션 자체가 이미 부드러우므로,
+     vv를 매 프레임 그대로 따라가는 것이 가장 부드럽다. */
   transform: translateY(var(--vv-top));
   min-height: calc(var(--app-h) - var(--kb));
   display: grid;
@@ -146,7 +148,9 @@ button:focus {
   position: relative;
   width: min(100vw, var(--phone-w));
   min-width: 0;
-  transition: height .18s ease;
+  /* 높이 이징 금지 — #app의 설명 참조. 게다가 .phone 높이가 매 프레임 바뀌면
+     그 안의 .sheet(max-height가 100% 기준 + backdrop-filter blur)가 프레임마다
+     레이아웃+블러 재계산 대상이 된다. 댓글창 버벅임의 실체가 이것이었다. */
   height: calc(var(--app-h) - var(--kb));
   max-height: var(--phone-h);
   overflow: hidden;

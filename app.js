@@ -3660,6 +3660,7 @@ function applyViewport(visibleH, top) {
   const key = visibleH > 0 ? `${Math.round(visibleH)}:${Math.round(top)}` : "0";
   if (key === vvApplied) return;
   vvApplied = key;
+  const wasUp = root.classList.contains("kb-up");
   if (visibleH > 0) {
     root.style.setProperty("--vvh", `${Math.round(visibleH)}px`);
     root.style.setProperty("--vv-top", `${Math.round(top)}px`);
@@ -3668,9 +3669,13 @@ function applyViewport(visibleH, top) {
     root.style.setProperty("--vv-top", "0px");
     root.classList.remove("kb-up");
   }
-  // 줄어든 높이에 맞춰 대화는 마지막 말풍선이 계속 보이게 한다
-  const chat = app.querySelector("[data-chat-scroll]");
-  if (chat) chat.scrollTop = chat.scrollHeight;
+  // 자판이 '막 올라온' 순간에만 마지막 말풍선으로 내린다.
+  // ⚠️ 매 틱 당기면 안 된다 — 자판이 뜬 채로 스크롤하면 iOS가 offsetTop을 계속 바꿔
+  // 여기가 프레임마다 불리고, 그때마다 스크롤이 바닥으로 끌려가 화면이 떨린다.
+  if (visibleH > 0 && !wasUp) {
+    const chat = app.querySelector("[data-chat-scroll]");
+    if (chat) chat.scrollTop = chat.scrollHeight;
+  }
 }
 
 // 자판이 떠 있으면 홈 인디케이터 여백은 자판이 이미 덮고 있다 — 입력창을 자판에 바짝 붙인다.
