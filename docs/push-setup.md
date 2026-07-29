@@ -13,15 +13,20 @@
 **데이터가 남았으면 알림도 반드시 나갑니다.**
 
 - 트리거·발송 함수: `supabase/migration-14.sql`
-- 트리거는 `service_role` 키로 Edge Function을 부릅니다. 키는 **저장소에 두지 않고
-  Supabase Vault**(`notify_service_key`)에 넣습니다 — migration-14 상단 '선행 1단계' 참조.
-- Edge Function은 **service_role 호출만** 받습니다. 구버전 앱이 사용자 JWT로 불러도
+- 트리거는 **우리가 만든 무작위 공유 비밀**(`x-notify-secret` 헤더)로 자신을 증명합니다.
+  supabase 키를 쓰지 않는 이유: 레거시 JWT(`eyJ...`)와 신형(`sb_secret_...`) 두 형식이
+  공존해 어느 쪽이 함수 환경변수에 들어오는지 프로젝트마다 다르고, `Authorization`
+  헤더는 공개된 anon 키로도 채워질 수 있어 인증 근거가 못 됩니다.
+- 같은 비밀이 **두 곳**에 있어야 합니다: Supabase Vault `notify_service_key`(트리거가 읽음)
+  와 함수 시크릿 `NOTIFY_SECRET`(함수가 대조함). 저장소에는 없습니다.
+- `Authorization`에는 공개 anon 키를 넣습니다 — 플랫폼 `verify_jwt`를 통과시키는 용도일 뿐입니다.
+- Edge Function은 **이 비밀이 맞는 호출만** 받습니다. 구버전 앱이 사용자 JWT로 불러도
   조용히 무시(200 skipped)하므로 이관 중 알림이 두 번 가지 않습니다.
 
 ### 이관/재배포 순서 (중요)
 
-1. `migration-14.sql` 실행 (+ Vault에 `notify_service_key` 저장)
-2. `supabase functions deploy notify` — 트리거 호출을 받는 새 버전
+1. 무작위 비밀 생성 → Vault에 `notify_service_key`로 저장 → `migration-14.sql` 실행
+2. `supabase secrets set NOTIFY_SECRET=<같은 비밀>` → `supabase functions deploy notify`
 3. 앱 배포 — 앱에서 알림 호출 코드가 빠진 버전
 
 1만 한 상태에선 트리거 호출이 구버전 함수에 막혀 무시되고 기존 앱 경로로 계속 알림이

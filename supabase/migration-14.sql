@@ -12,19 +12,27 @@
 --   messages  INSERT → 받는 사람
 --   friendships INSERT(pending) → 요청받은 사람 / UPDATE(accepted) → 요청한 사람
 --
--- ⚠️ 실행 전에 아래 '선행 1단계'를 먼저 하세요. 서비스 키는 저장소에 커밋하지 않고
---    Supabase Vault에 넣습니다.
+-- 🔑 인증 설계 — 왜 supabase 키를 안 쓰나
+--   트리거가 Edge Function을 부를 때 '이건 진짜 우리 DB다'를 증명해야 한다. 처음엔
+--   service_role 키를 그대로 쓰려 했지만, supabase 키는 형식이 두 가지고(레거시 JWT
+--   `eyJ...` / 신형 `sb_secret_...`) 어느 쪽이 함수 환경변수에 들어오는지 프로젝트마다
+--   달라 깨지기 쉽다. 그래서 **우리가 만든 무작위 공유 비밀**을 쓴다.
+--     Authorization: Bearer <anon 키>  → 플랫폼 JWT 검증(verify_jwt)만 통과시키는 용도.
+--                                        anon 키는 config.js에 이미 공개돼 있어 비밀이 아니다.
+--     x-notify-secret: <무작위 비밀>    → 진짜 인증. Vault와 함수 시크릿 양쪽에만 있다.
+--   anon 키만으로는 아무나 부를 수 있으므로(공개 키다) x-notify-secret이 반드시 필요하다.
 --
--- ── 선행 1단계: 서비스 키를 Vault에 저장 (이 파일이 아니라 SQL Editor에 직접) ──
+-- ── 선행 1단계: 공유 비밀을 Vault에 저장 (이 파일이 아니라 SQL Editor에 직접) ──
 --   select vault.create_secret(
---     '여기에_service_role_key_붙여넣기',
+--     '여기에_무작위_비밀_붙여넣기',
 --     'notify_service_key',
---     'notify 트리거가 Edge Function을 호출할 때 쓰는 키'
+--     'notify 트리거가 Edge Function을 호출할 때 쓰는 공유 비밀'
 --   );
---   -- 키는 Dashboard → Project Settings → API → service_role (secret)
---   -- 이미 넣어둔 뒤 바꾸려면:
+--   -- 이미 넣어뒀다면 값만 바꾼다:
 --   --   select vault.update_secret(
---   --     (select id from vault.secrets where name = 'notify_service_key'), '새키');
+--   --     (select id from vault.secrets where name = 'notify_service_key'), '새비밀');
+--   -- 같은 값을 함수 쪽에도 넣어야 한다:
+--   --   supabase secrets set NOTIFY_SECRET=<같은 비밀> --project-ref nzrfzxpqvhdkmogpsscz
 --
 -- ── 실행 순서 (중요) ──
 --   ① 이 파일 실행  ② notify Edge Function 재배포  ③ 앱 배포
@@ -39,6 +47,8 @@ create extension if not exists pg_net;
 -- ---------------------------------------------------------------
 -- security definer인 이유: vault.decrypted_secrets는 소유자(postgres)만 읽을 수 있는데,
 -- 트리거는 댓글을 쓴 사용자 권한으로 돈다.
+-- anon 키는 비밀이 아니다(config.js에 그대로 공개돼 있다) — verify_jwt를 통과시키는 용도일 뿐,
+-- 실제 인증은 x-notify-secret이 한다.
 create or replace function public.push_notify(p_type text, p_from uuid, p_to uuid)
 returns void
 language plpgsql
@@ -57,7 +67,7 @@ begin
     from vault.decrypted_secrets
    where name = 'notify_service_key';
 
-  -- 키가 아직 없으면 조용히 넘어간다 — 알림이 안 갈 뿐, 댓글/메시지 저장은 정상이어야 한다
+  -- 비밀이 아직 없으면 조용히 넘어간다 — 알림이 안 갈 뿐, 댓글/메시지 저장은 정상이어야 한다
   if v_key is null then
     return;
   end if;
@@ -66,7 +76,10 @@ begin
     url := 'https://nzrfzxpqvhdkmogpsscz.supabase.co/functions/v1/notify',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'Authorization', 'Bearer ' || v_key
+      -- 플랫폼 verify_jwt 통과용 (공개 키)
+      'Authorization', 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im56cmZ6eHBxdmhka21vZ3Bzc2N6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM0Mjc3NjYsImV4cCI6MjA5OTAwMzc2Nn0.9QP6B46co4109frO-H_PYX_f4fvoPwEwz6HbIHGJuz8',
+      -- 진짜 인증 — 이 헤더가 맞아야만 함수가 발송한다
+      'x-notify-secret', v_key
     ),
     body := jsonb_build_object('type', p_type, 'fromUid', p_from, 'toUid', p_to)
   );

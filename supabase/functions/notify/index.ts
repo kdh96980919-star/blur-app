@@ -1,9 +1,10 @@
 // notify — 웹 푸시 발송 Edge Function (migration-11)
 // 배포: supabase functions deploy notify   (또는 Dashboard > Edge Functions)
 // 시크릿: supabase secrets set VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=... VAPID_SUBJECT=mailto:you@example.com
+//         supabase secrets set NOTIFY_SECRET=...   (Vault의 notify_service_key와 같은 값)
 // (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY 는 플랫폼이 자동 주입)
 //
-// 동작(migration-14부터): DB 트리거만 이 함수를 부른다. 트리거가 service_role 키로
+// 동작(migration-14부터): DB 트리거만 이 함수를 부른다. 트리거가 x-notify-secret 헤더와 함께
 // { type, fromUid, toUid } 를 보내면, 두 사람 사이 friendships 행이 있는지 확인(스팸 방지)하고,
 // 알림 문구는 서버가 type 으로 생성해 대상자의 모든 구독에 발송한다.
 // 만료된 구독(404/410)은 정리한다.
@@ -20,6 +21,9 @@ const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const VAPID_PUBLIC = Deno.env.get("VAPID_PUBLIC_KEY")!;
 const VAPID_PRIVATE = Deno.env.get("VAPID_PRIVATE_KEY")!;
 const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT") || "mailto:202501630@inu.ac.kr";
+// DB 트리거만 아는 공유 비밀 — Vault의 notify_service_key와 같은 값이어야 한다
+// (supabase secrets set NOTIFY_SECRET=... --project-ref nzrfzxpqvhdkmogpsscz)
+const NOTIFY_SECRET = Deno.env.get("NOTIFY_SECRET") || "";
 
 webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
 
@@ -52,11 +56,16 @@ Deno.serve(async (req) => {
     const { type, fromUid, toUid } = await req.json().catch(() => ({}));
     if (!type || !toUid || !UUID.test(String(toUid))) return json({ error: "bad-request" }, 400);
 
-    // 호출자는 DB 트리거여야 한다 — service_role 키로 왔는지로 가른다.
-    // 구버전 앱(사용자 JWT)의 호출은 조용히 무시한다: 에러로 만들면 앱 콘솔만 시끄럽고,
-    // 발송하면 트리거와 겹쳐 알림이 두 번 간다.
-    const token = (req.headers.get("Authorization") || "").replace("Bearer ", "");
-    if (token !== SERVICE_ROLE) return json({ skipped: "client-path-retired" }, 200);
+    // 호출자는 DB 트리거여야 한다 — 우리가 만든 공유 비밀(x-notify-secret)로 가른다.
+    // ⚠️ supabase 키(service_role)로 판별하지 않는다: 레거시 JWT / 신형 sb_secret_ 두 형식이
+    // 공존해 어느 쪽이 환경변수에 들어오는지 프로젝트마다 다르고, Authorization 헤더는
+    // anon 키(공개)로도 채워질 수 있어 인증 근거가 못 된다.
+    // 구버전 앱(사용자 JWT, 이 헤더 없음)의 호출은 조용히 무시한다: 에러로 만들면 앱 콘솔만
+    // 시끄럽고, 발송하면 트리거와 겹쳐 알림이 두 번 간다.
+    if (!NOTIFY_SECRET) return json({ error: "NOTIFY_SECRET 미설정" }, 500);
+    if (req.headers.get("x-notify-secret") !== NOTIFY_SECRET) {
+      return json({ skipped: "client-path-retired" }, 200);
+    }
     if (!fromUid || !UUID.test(String(fromUid))) return json({ error: "bad-request" }, 400);
     if (fromUid === toUid) return json({ skipped: "self" }, 200);
 
