@@ -2132,7 +2132,6 @@ function chatRoomView() {
     .filter((m) => m.from === state.overlays.chatWith || m.to === state.overlays.chatWith)
     .sort((a, b) => a.at - b.at);
   return `<section class="overlay">
-    <div id="kbdiag" style="position:fixed;left:6px;top:46%;z-index:99999;background:rgba(0,0,0,.82);color:#8f8;font:11px/1.5 monospace;padding:5px 7px;border-radius:6px;white-space:pre;pointer-events:none">diag…</div>
     <div class="topbar" style="padding-bottom:10px;border-bottom:1px solid rgba(74,53,64,.08)">
       <button class="ghost-icon" data-action="close-chat">${icon("arrow-left", 17)}</button>
       <button style="display:flex;align-items:center;gap:9px;min-width:0;background:transparent;padding:0;cursor:pointer" aria-label="${escapeHtml(other.name)} 프로필 보기" data-action="open-friend-profile" data-user="${other.id}">
@@ -3673,28 +3672,6 @@ app.addEventListener("focusout", () => {
     syncKeyboardOpen();
   }, 80);
 });
-
-// ── 임시 진단(대화창 키보드) — 실기기 실측용, 원인 확인 후 제거 ──
-setInterval(() => {
-  const el = document.getElementById("kbdiag");
-  if (!el) return;
-  const vv = window.visualViewport;
-  const bar = el.parentElement?.querySelector(".topbar");
-  const barTop = bar ? Math.round(bar.getBoundingClientRect().top) : -1;
-  const rowEl = el.parentElement?.querySelector(".chat-input-row");
-  const rowBottom = rowEl ? Math.round(rowEl.getBoundingClientRect().bottom) : -1;
-  const cs = getComputedStyle(document.documentElement);
-  el.textContent =
-    `iH ${window.innerHeight}\n` +
-    `vvH ${vv ? Math.round(vv.height) : -1}\n` +
-    `vvTop ${vv ? Math.round(vv.offsetTop) : -1}\n` +
-    `--vvh ${cs.getPropertyValue("--vvh").trim()}\n` +
-    `--vvtop ${cs.getPropertyValue("--vv-top").trim()}\n` +
-    `kbUp ${document.documentElement.classList.contains("kb-up") ? 1 : 0}\n` +
-    `barTop ${barTop}\n` +
-    `rowBot ${rowBottom}\n` +
-    `fb ${kbFallback ? 1 : 0}`;
-}, 200);
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("./sw.js").catch(() => {});
