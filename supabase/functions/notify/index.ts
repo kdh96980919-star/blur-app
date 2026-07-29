@@ -3,9 +3,15 @@
 // 시크릿: supabase secrets set VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=... VAPID_SUBJECT=mailto:you@example.com
 // (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY 는 플랫폼이 자동 주입)
 //
-// 동작: 로그인한 호출자가 { type, toUid } 를 보내면, 두 사람 사이 friendships 행이 있는지
-// 확인(스팸 방지)하고, 알림 문구는 서버가 type 으로 생성해(클라 텍스트 불신) 대상자의
-// 모든 구독에 발송한다. 만료된 구독(404/410)은 정리한다.
+// 동작(migration-14부터): DB 트리거만 이 함수를 부른다. 트리거가 service_role 키로
+// { type, fromUid, toUid } 를 보내면, 두 사람 사이 friendships 행이 있는지 확인(스팸 방지)하고,
+// 알림 문구는 서버가 type 으로 생성해 대상자의 모든 구독에 발송한다.
+// 만료된 구독(404/410)은 정리한다.
+//
+// ⚠️ 예전에는 '행동한 사람의 앱'이 로그인 JWT로 직접 불렀다. 그 경로는 은퇴했다 —
+// 앱이 호출 직후 죽거나 네트워크가 끊기면 알림이 조용히 유실됐기 때문이다.
+// 구버전 앱이 캐시에 남아 계속 부를 수 있으므로, 사용자 JWT 호출은 에러가 아니라
+// 조용히 무시한다(200 skipped). 이렇게 해야 이관 도중 알림이 두 번 가지 않는다.
 import webpush from "npm:web-push@3.6.7";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
@@ -29,7 +35,7 @@ function bodyText(type: string, name: string): string {
   switch (type) {
     case "request": return `${name}님이 친구 요청을 보냈어요`;
     case "accept": return `${name}님이 친구 요청을 수락했어요`;
-    case "comment": return `${name}님이 내 게시물에 댓글을 남겼어요`;
+    case "comment": return `${name}님이 댓글을 남겼어요`;
     case "message": return `${name}님이 메시지를 보냈어요`;
     default: return "새로운 알림이 있어요";
   }
@@ -43,17 +49,19 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "method" }, 405);
   try {
-    const { type, toUid } = await req.json().catch(() => ({}));
+    const { type, fromUid, toUid } = await req.json().catch(() => ({}));
     if (!type || !toUid || !UUID.test(String(toUid))) return json({ error: "bad-request" }, 400);
 
-    const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
-
-    // 호출자 식별 (로그인 JWT)
+    // 호출자는 DB 트리거여야 한다 — service_role 키로 왔는지로 가른다.
+    // 구버전 앱(사용자 JWT)의 호출은 조용히 무시한다: 에러로 만들면 앱 콘솔만 시끄럽고,
+    // 발송하면 트리거와 겹쳐 알림이 두 번 간다.
     const token = (req.headers.get("Authorization") || "").replace("Bearer ", "");
-    const { data: userData } = await admin.auth.getUser(token);
-    const caller = userData?.user;
-    if (!caller) return json({ error: "unauthorized" }, 401);
-    if (caller.id === toUid) return json({ skipped: "self" }, 200);
+    if (token !== SERVICE_ROLE) return json({ skipped: "client-path-retired" }, 200);
+    if (!fromUid || !UUID.test(String(fromUid))) return json({ error: "bad-request" }, 400);
+    if (fromUid === toUid) return json({ skipped: "self" }, 200);
+
+    const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
+    const caller = { id: fromUid as string };
 
     // 관계 검증 — 두 사람 사이 friendships 행이 있어야 발송 (모르는 사람에게 스팸 금지)
     // friendships 기본키는 복합키(user_a, user_b) — id 컬럼이 없으므로 실재 컬럼(status)을 고른다.

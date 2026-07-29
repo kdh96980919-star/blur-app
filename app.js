@@ -2817,9 +2817,8 @@ async function friendAction(kind, handle) {
       block: "차단했어요"
     };
     toast(messages[kind]);
-    // 잠금화면 알림 발송 (상대가 구독돼 있으면) — 파이어 앤 포겟
-    if (kind === "request") api.notify("request", uid);
-    else if (kind === "accept") api.notify("accept", uid);
+    // 잠금화면 알림은 여기서 보내지 않는다 — friendships 행이 들어가는 순간
+    // DB 트리거가 발송한다(migration-14). 앱이 그 사이 죽어도 알림은 나간다.
     // 수락하면 새 친구의 오늘 허브가 새로고침 없이 바로 보이도록 전체 재적재 (베타 피드백 8)
     if (kind === "accept") scheduleRefresh();
   } catch (error) {
@@ -3318,13 +3317,9 @@ async function sendComment() {
       const p = s.posts.find((x) => x.id === postId);
       if (p) p.comments.push({ id: row?.id, by: "me", text, at: Date.now() });
     });
-    // 내 댓글이 아니면 게시물 작성자에게 잠금화면 알림
-    if (post && post.authorId !== "me") api.notify("comment", uidOf(post.authorId));
-    // @아이디로 시작하는 답글이면 지목당한 사람에게도 알림 — 내 사진에 달린 답글은
-    // 작성자(=나)에게만 가서, 정작 답글을 받은 사람은 모른 채 지나가기 때문
-    const mentioned = text.match(/^@([a-z0-9_]{3,16})/);
-    const mentionUid = mentioned ? uidOf(mentioned[1]) : "";
-    if (mentionUid && mentionUid !== state.me && (!post || uidOf(post.authorId) !== mentionUid)) api.notify("comment", mentionUid);
+    // 잠금화면 알림은 여기서 보내지 않는다 — comments 행이 들어가는 순간 DB 트리거가
+    // 게시물 작성자에게(그리고 @아이디로 시작하는 답글이면 지목당한 사람에게도)
+    // 발송한다(migration-14). 보내고 앱이 바로 꺼져도 알림은 나간다.
   } catch (error) {
     toast(error.message || "댓글을 남기지 못했어요");
   }
@@ -3441,7 +3436,7 @@ async function sendDm() {
     update((s) => {
       s.messages.push({ id: row?.id, from: "me", to: handle, body, at: Date.now(), read: false });
     });
-    api.notify("message", otherUid); // 상대에게 잠금화면 알림
+    // 잠금화면 알림은 messages 행이 들어가는 순간 DB 트리거가 보낸다(migration-14)
     document.querySelector("#dm-input")?.focus({ preventScroll: true });
   } catch (error) {
     toast(error.message || "메시지를 보내지 못했어요 — 친구끼리만 대화할 수 있어요");

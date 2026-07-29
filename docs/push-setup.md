@@ -1,10 +1,31 @@
-# 웹 푸시 알림 셋업 (migration-11 + notify Edge Function)
+# 웹 푸시 알림 셋업 (migration-11 + migration-14 + notify Edge Function)
 
 앱을 꺼놔도 **잠금화면에 알림**이 오게 하는 웹 푸시 설정 절차입니다.
-코드는 이미 다 들어가 있고, 아래 3가지(마이그레이션·시크릿·함수 배포)만 하면 동작합니다.
 
 > 알림이 발생하는 이벤트: **친구 요청 / 친구 수락 / 내 게시물 댓글 / 메시지(DM)**
 > (문구는 서버가 생성 — 클라이언트가 임의 텍스트를 넣을 수 없음)
+
+## 누가 발송을 시작하는가 (2026-07-29 변경)
+
+**DB 트리거입니다.** 예전에는 '행동한 사람의 앱'이 notify 함수를 직접 불렀는데,
+댓글을 달자마자 앱이 죽거나 네트워크가 끊기면 알림이 조용히 유실됐습니다.
+이제 `comments` / `messages` / `friendships` 행이 들어가는 순간 트리거가 발송합니다 —
+**데이터가 남았으면 알림도 반드시 나갑니다.**
+
+- 트리거·발송 함수: `supabase/migration-14.sql`
+- 트리거는 `service_role` 키로 Edge Function을 부릅니다. 키는 **저장소에 두지 않고
+  Supabase Vault**(`notify_service_key`)에 넣습니다 — migration-14 상단 '선행 1단계' 참조.
+- Edge Function은 **service_role 호출만** 받습니다. 구버전 앱이 사용자 JWT로 불러도
+  조용히 무시(200 skipped)하므로 이관 중 알림이 두 번 가지 않습니다.
+
+### 이관/재배포 순서 (중요)
+
+1. `migration-14.sql` 실행 (+ Vault에 `notify_service_key` 저장)
+2. `supabase functions deploy notify` — 트리거 호출을 받는 새 버전
+3. 앱 배포 — 앱에서 알림 호출 코드가 빠진 버전
+
+1만 한 상태에선 트리거 호출이 구버전 함수에 막혀 무시되고 기존 앱 경로로 계속 알림이
+갑니다. 즉 **중간에 끊기거나 두 번 가는 구간이 없습니다.**
 
 ---
 
@@ -71,3 +92,10 @@ supabase functions deploy notify
   `jsr:@negrel/webpush`로 교체(발송 API는 유사). 대부분은 그대로 배포됩니다.
 - 알림이 안 오면: (1) 설정 토글이 켜져 있는지 (2) 기기 OS 알림 권한이 허용인지
   (3) `push_subscriptions`에 행이 있는지 (4) Edge Function 로그(Dashboard → Edge Functions → notify → Logs) 확인.
+- **트리거가 실제로 쐈는지**는 SQL Editor에서 pg_net 응답 로그를 봅니다:
+  `select id, status_code, content from net._http_response order by id desc limit 5;`
+  - 행이 아예 없다 → 트리거가 안 붙었거나 Vault 키가 없음(`push_notify`가 키 없으면 조용히 통과).
+    `select name from vault.secrets where name = 'notify_service_key';` 로 확인.
+  - `status_code` 200에 `{"skipped":"client-path-retired"}` → 함수가 구버전. 2단계(함수 재배포) 필요.
+  - `{"skipped":"no-relation"}` → 두 사람이 친구가 아님(의도된 스팸 방지).
+  - `{"sent":0}` → 받는 사람이 알림을 안 켰거나 구독이 없음.

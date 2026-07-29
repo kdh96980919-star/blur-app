@@ -351,16 +351,10 @@ export async function deletePushSubscription(endpoint) {
   if (error) fail(error);
 }
 
-// 대상자에게 웹 푸시 발송 요청 — 실제 발송/서명은 서버(notify Edge Function)가 한다.
-// 실패해도 앱 흐름은 막지 않는다(파이어 앤 포겟). 알림 문구는 서버가 type으로 생성.
-export async function notify(type, toUid) {
-  if (!toUid) return;
-  try {
-    await supabase.functions.invoke("notify", { body: { type, toUid } });
-  } catch (e) {
-    // 알림 발송 실패는 조용히 무시 (기능 미배포·오프라인 등)
-  }
-}
+// 푸시 발송 함수는 여기 없다 — migration-14부터 DB 트리거가 보낸다.
+// 앱이 직접 부르던 시절엔 댓글을 달자마자 앱이 죽거나 호출이 실패하면 알림이 조용히
+// 유실됐다. 이제 comments/messages/friendships 행이 들어가는 순간 트리거가 notify
+// Edge Function을 부른다 — 데이터가 남았으면 알림도 반드시 나간다.
 
 // ---------------- 메시지 (DM, migration-05) ----------------
 
