@@ -11,7 +11,7 @@
 
 ```bash
 git clone https://github.com/kdh96980919-star/blur-app.git /tmp/blur-app
-rsync -a --exclude .git --exclude .DS_Store /Users/kim/Desktop/anti/10-working/blur-service/ /tmp/blur-app/
+rsync -a --exclude .git --exclude .DS_Store --exclude test /Users/kim/Desktop/anti/10-working/blur-service/ /tmp/blur-app/
 cd /tmp/blur-app && git add -A && git commit -m "update" && git push
 ```
 
@@ -19,6 +19,18 @@ cd /tmp/blur-app && git add -A && git commit -m "update" && git push
 
 - `/` : 배포 가능한 형태로 다시 구현한 PWA MVP
 - `/prototype/` : 전달받은 `blur 앱 v5.dc.html` 원본 프로토타입을 그대로 복사한 비교 기준
+- `/test/` : 검증 하니스 (배포 제외 — 위 rsync에 `--exclude test`). `test/run.sh`로 실행
+
+## 렌더 방식 (2026-07-29, 버벅임·흔들림 수정)
+
+화면을 조각(주 화면·탭바·오버레이 슬롯·배너·작업중·토스트)으로 나눠 두고,
+조각의 HTML이 지난번과 같으면 그 노드는 **아예 건드리지 않습니다**(`patchPhone`).
+전체 `innerHTML` 교체는 안 바뀐 층의 사진·동영상까지 매번 새로 만들어
+깜빡임·스크롤 튐·backdrop-filter 재래스터화(버벅임)를 일으켰습니다.
+
+노드가 살아남으므로 재렌더 뒤 포커스·커서·스크롤 복원은 **노드가 실제로 교체됐을 때만** 합니다.
+살아남은 요소에 다시 쓰면 한글 조합이 끊기고 넘기던 스크롤이 멈춥니다.
+회귀 방지 검사는 `test/run.sh`.
 
 원본 디자인과 픽셀 단위로 맞춰야 할 때는 `/prototype/`를 기준으로 보고, 실제 서비스 코드로 발전시킬 대상은 `/`입니다. 지금 MVP는 기능 구현을 우선해서 원본 HTML과 화면이 다르게 보일 수 있습니다.
 

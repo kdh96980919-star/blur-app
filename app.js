@@ -820,6 +820,43 @@ function overlaySignature() {
   ].join("|");
 }
 
+// 화면을 조각(주 화면·탭바·오버레이 슬롯·배너·작업중·토스트)으로 나눠 두고,
+// 조각의 HTML이 지난번과 같으면 그 노드는 아예 건드리지 않는다.
+// DOM을 통째로 갈아엎으면(innerHTML) 안 바뀐 층의 사진·동영상까지 매번 새로 만들어져
+// 사진이 깜빡이고, 캐러셀 스크롤이 튀고, backdrop-filter 표면이 전부 다시 래스터화돼 버벅인다.
+let phoneParts = [];
+
+function htmlToNodes(html) {
+  // <template>은 비활성 문서라 여기서 만든 <img>는 DOM에 붙기 전까지 로드되지 않는다
+  const holder = document.createElement("template");
+  holder.innerHTML = html;
+  return [...holder.content.children];
+}
+
+function patchPhone(className, parts) {
+  let phone = app.firstElementChild;
+  if (!phone || !phone.classList.contains("phone")) {
+    phone = document.createElement("div");
+    app.replaceChildren(phone);
+    phoneParts = [];
+  }
+  phone.className = className;
+  for (let i = 0; i < parts.length; i++) {
+    const prev = phoneParts[i];
+    if (prev && prev.html === parts[i]) continue;
+    if (prev) prev.nodes.forEach((node) => node.remove());
+    const nodes = parts[i] ? htmlToNodes(parts[i]) : [];
+    // 뒤쪽 조각 중 아직 살아 있는 첫 노드 앞에 넣어야 순서가 유지된다
+    // (j > i 조각은 이번 회차에 아직 손대지 않았으므로 그대로 DOM에 있다)
+    let after = null;
+    for (let j = i + 1; j < phoneParts.length && !after; j++) after = phoneParts[j]?.nodes[0] || null;
+    nodes.forEach((node) => phone.insertBefore(node, after));
+    phoneParts[i] = { html: parts[i], nodes };
+  }
+  for (let i = parts.length; i < phoneParts.length; i++) phoneParts[i]?.nodes.forEach((node) => node.remove());
+  phoneParts.length = parts.length;
+}
+
 function render() {
   const active = document.activeElement;
   const activeField = active && app.contains(active) ? active.dataset.field : "";
@@ -829,7 +866,10 @@ function render() {
   // (실시간 갱신) 내가 쓰던 초안과 포커스가 사라지지 않게 따로 챙겨둔다
   const oldComment = app.querySelector("#comment-input");
   const commentDraft = oldComment ? { value: oldComment.value, focused: oldComment === active, caret: oldComment.selectionStart } : null;
-  const scrolls = [...app.querySelectorAll(".screen-scroll")].map((el) => el.scrollTop);
+  // 노드가 살아남았는지 비교하려고 값이 아니라 요소 자체를 들고 있는다 —
+  // 살아남은 요소에 scrollTop/scrollLeft를 다시 쓰면 손가락으로 넘기던 스크롤이 끊긴다
+  const scrollEls = [...app.querySelectorAll(".screen-scroll")];
+  const scrolls = scrollEls.map((el) => el.scrollTop);
   const oldCarousel = app.querySelector("[data-carousel]");
   const carouselLeft = oldCarousel ? oldCarousel.scrollLeft : 0;
   const oldChat = app.querySelector("[data-chat-scroll]");
@@ -846,26 +886,32 @@ function render() {
   lastMainSig = mainSig;
   lastOvSig = ovSig;
   lastViewerPost = state.overlays.viewerPost;
-  const content = state.auth === "loading"
-    ? loadingView()
+  const tail = [offlineBanner(), busyView(), toastView()];
+  const parts = state.auth === "loading"
+    ? [loadingView(), ...tail]
     : state.auth === "offline"
-      ? offlineView()
+      ? [offlineView(), ...tail]
       : state.auth === "welcome"
-        ? welcomeView()
+        ? [welcomeView(), ...tail]
         : state.auth === "setup"
-          ? setupView()
-          : appView();
-  app.innerHTML = `<div class="phone${mainSame ? " no-anim-main" : ""}${ovSame ? " no-anim-ov" : ""}${viewerSame ? " no-anim-viewer" : ""}">${content}${offlineBanner()}${busyView()}${toastView()}</div>`;
+          ? [setupView(), ...tail]
+          : [tabView(), tabbar(), ...overlayParts(), ...tail];
+  patchPhone(
+    `phone${mainSame ? " no-anim-main" : ""}${ovSame ? " no-anim-ov" : ""}${viewerSame ? " no-anim-viewer" : ""}`,
+    parts
+  );
   if (mainSame) {
     [...app.querySelectorAll(".screen-scroll")].forEach((el, i) => {
-      if (scrolls[i]) el.scrollTop = scrolls[i];
+      if (scrolls[i] && el !== scrollEls[i]) el.scrollTop = scrolls[i];
     });
     const newCarousel = app.querySelector("[data-carousel]");
-    if (newCarousel && carouselLeft) newCarousel.scrollLeft = carouselLeft;
+    if (newCarousel && newCarousel !== oldCarousel && carouselLeft) newCarousel.scrollLeft = carouselLeft;
   }
   if (activeField) {
     const el = app.querySelector(`[data-field="${activeField}"]`);
-    if (el) {
+    // 노드가 그대로 살아남았으면 포커스·커서도 그대로다 — 다시 건드리면
+    // 한글 조합이 끊기므로 교체된 경우에만 복원한다
+    if (el && el !== active) {
       el.focus({ preventScroll: true });
       if (selStart !== null && typeof el.setSelectionRange === "function") {
         try { el.setSelectionRange(Math.min(selStart, el.value.length), Math.min(selEnd, el.value.length)); } catch {}
@@ -873,7 +919,7 @@ function render() {
     }
   }
   const newComment = app.querySelector("#comment-input");
-  if (newComment && commentDraft && commentDraft.value) {
+  if (newComment && newComment !== oldComment && commentDraft && commentDraft.value) {
     newComment.value = commentDraft.value;
     if (commentDraft.focused) {
       newComment.focus({ preventScroll: true });
@@ -882,8 +928,9 @@ function render() {
     }
   }
   const newChat = app.querySelector("[data-chat-scroll]");
-  if (newChat) {
+  if (newChat && newChat !== oldChat) {
     // 새로 열렸거나 바닥 근처를 보고 있었다면 최신 메시지로, 위로 스크롤해 읽는 중이면 그 자리 유지
+    // (노드가 그대로면 대화 내용도 그대로다 — 손대면 읽던 자리가 튄다)
     if (!chatState || chatState.nearBottom) newChat.scrollTop = newChat.scrollHeight;
     else newChat.scrollTop = chatState.top;
   }
@@ -1004,10 +1051,6 @@ function setupView() {
 
 function providerLabel(provider) {
   return { kakao: "카카오", google: "Google" }[provider] || "소셜";
-}
-
-function appView() {
-  return `${tabView()}${tabbar()}${overlayViews()}`;
 }
 
 function tabView() {
@@ -1377,7 +1420,8 @@ function tabbar() {
   </nav>`;
 }
 
-function overlayViews() {
+// 오버레이는 조각(슬롯) 배열 그대로 돌려준다 — render가 바뀐 조각만 갈아끼운다
+function overlayParts() {
   return [
     state.upload.open ? uploadView() : "",
     state.overlays.friendUser ? profileView(state.overlays.friendUser, "friend") : "",
@@ -1399,7 +1443,7 @@ function overlayViews() {
     state.overlays.dmDelete ? dmDeleteSheet() : "",
     state.phoneSheet ? phoneSheet() : "",
     state.onboard ? onboardView() : ""
-  ].join("");
+  ];
 }
 
 // 신고 사유 선택 시트 — 게시물·댓글·사용자 공용 (스토어 심사 요건)
@@ -2183,6 +2227,7 @@ let lastUnseenNotif = 0;
 // 주제가 두 줄 이상이면 사진이 쓸 수 있는 세로 공간이 그만큼 줄어든다.
 // HOME_CHROME은 '주제 한 줄'을 가정한 상수라, 늘어난 줄 높이를 실측해 --hub-extra로
 // 넘겨 카드 계산에서 함께 뺀다. (이게 없으면 긴 주제에 사진 위아래가 잘렸다)
+let hubExtraApplied = null;
 function syncHubExtra() {
   const el = app.querySelector(".topic-callout");
   let extra = 0;
@@ -2192,7 +2237,12 @@ function syncHubExtra() {
     const inner = el.getBoundingClientRect().height - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
     if (lh > 0) extra = Math.max(0, Math.round(inner / lh) - 1) * lh;
   }
-  document.documentElement.style.setProperty("--hub-extra", `${Math.round(extra)}px`);
+  // 값이 그대로면 쓰지 않는다 — --hub-extra는 모든 슬라이드 폭(cardWidth)의 입력이라
+  // 매 렌더마다 다시 쓰면 사진 카드 전체가 다시 레이아웃된다
+  const next = Math.round(extra);
+  if (next === hubExtraApplied) return;
+  hubExtraApplied = next;
+  document.documentElement.style.setProperty("--hub-extra", `${next}px`);
 }
 
 function afterRender() {
@@ -2208,7 +2258,9 @@ function afterRender() {
   }
   const carousel = document.querySelector("[data-carousel]");
   const indicator = document.querySelector("[data-indicator]");
-  if (carousel && indicator) {
+  // 캐러셀 노드는 이제 재렌더에도 살아남는다 — 리스너를 매번 또 달면 계속 쌓여 버벅인다
+  if (carousel && indicator && !carousel.dataset.bound) {
+    carousel.dataset.bound = "1";
     const count = Number(indicator.dataset.count);
     carousel.addEventListener("scroll", () => {
       const slide = carousel.querySelector(".home-slide");
@@ -2271,10 +2323,12 @@ app.addEventListener("change", (event) => {
   render();
 });
 
+let longPressAt = null;
 app.addEventListener("pointerdown", (event) => {
   const target = event.target.closest("[data-long-post]");
   if (!target) return;
   longPressFired = false;
+  longPressAt = { x: event.clientX, y: event.clientY };
   clearTimeout(longPressTimer);
   longPressTimer = setTimeout(() => {
     longPressFired = true;
@@ -2284,8 +2338,21 @@ app.addEventListener("pointerdown", (event) => {
   }, 450);
 });
 
+// 사진 그리드를 스크롤하려고 손가락을 대고 있었을 뿐인데 길게 누름으로 잡혀
+// 뷰어가 튀어나오던 것 — 10px 넘게 움직이면 길게 누름은 취소한다
+app.addEventListener("pointermove", (event) => {
+  if (!longPressAt) return;
+  if (Math.abs(event.clientX - longPressAt.x) > 10 || Math.abs(event.clientY - longPressAt.y) > 10) {
+    longPressAt = null;
+    clearTimeout(longPressTimer);
+  }
+}, { passive: true });
+
 ["pointerup", "pointerleave", "pointercancel"].forEach((type) => {
-  app.addEventListener(type, () => clearTimeout(longPressTimer));
+  app.addEventListener(type, () => {
+    longPressAt = null;
+    clearTimeout(longPressTimer);
+  });
 });
 
 // 상태만 갱신 — 렌더/패치는 호출한 쪽에서 결정
