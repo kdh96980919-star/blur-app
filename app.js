@@ -2132,6 +2132,7 @@ function chatRoomView() {
     .filter((m) => m.from === state.overlays.chatWith || m.to === state.overlays.chatWith)
     .sort((a, b) => a.at - b.at);
   return `<section class="overlay">
+    <div id="kbdiag" style="position:fixed;left:6px;top:46%;z-index:99999;background:rgba(0,0,0,.82);color:#8f8;font:11px/1.5 monospace;padding:5px 7px;border-radius:6px;white-space:pre;pointer-events:none">diag…</div>
     <div class="topbar" style="padding-bottom:10px;border-bottom:1px solid rgba(74,53,64,.08)">
       <button class="ghost-icon" data-action="close-chat">${icon("arrow-left", 17)}</button>
       <button style="display:flex;align-items:center;gap:9px;min-width:0;background:transparent;padding:0;cursor:pointer" aria-label="${escapeHtml(other.name)} 프로필 보기" data-action="open-friend-profile" data-user="${other.id}">
@@ -3116,6 +3117,10 @@ function openPerson(userId) {
     s.overlays.publicUser = "";
     s.overlays.privateUser = "";
     s.overlays.friendUser = "";
+    // 댓글에서 눌렀을 땐 그 위에 떠 있던 댓글 시트·확대 뷰어를 닫아야 프로필이
+    // 뒤에 깔리지 않고 바로 위로 올라온다 (프로필은 오버레이 스택에서 더 먼저 그려짐)
+    s.overlays.commentsFor = "";
+    s.overlays.viewerPost = "";
     // 이미 친구면 친구 프로필(지난 허브·메시지)로, 아니면 공개는 프로필·비공개는 잠금 시트로
     if (s.friends.includes(userId)) s.overlays.friendUser = userId;
     else if (user.public) s.overlays.publicUser = userId;
@@ -3621,13 +3626,7 @@ if (viewport) {
       if (!kbFallback) applyKeyboardInset(kbMeasured);
       // iOS가 밀어 올린 만큼 도로 내린다. 키보드가 떠 있을 때만 — 사파리에서 손가락으로
       // 확대했을 때의 offsetTop까지 따라가면 화면이 엉뚱하게 움직인다.
-      // ⚠️ iOS는 뷰포트 높이를 줄이지 않고 offsetTop만 올려 입력창을 보이게 하기도 한다
-      //   (대화창에서 흔함). 그 땐 kbMeasured=0·폴백 없음이라 예전엔 상쇄를 안 해서
-      //   상단(대화방 프로필)이 화면 위로 잘려 사라졌다. 터치 기기에서 입력창에 포커스가
-      //   있으면(자판이 떠 있다는 뜻) offsetTop을 항상 상쇄한다 — 데스크톱 핀치줌은
-      //   coarse pointer도 포커스도 아니라 영향 없다.
-      const typingNow = canGuessKeyboard && document.activeElement?.matches?.(TYPING_FIELD);
-      const pushed = (kbMeasured || kbFallback || typingNow) ? Math.round(viewport.offsetTop) : 0;
+      const pushed = (kbMeasured || kbFallback) ? Math.round(viewport.offsetTop) : 0;
       document.documentElement.style.setProperty("--vv-top", `${pushed}px`);
       syncKeyboardOpen();
     });
@@ -3666,6 +3665,27 @@ app.addEventListener("focusout", () => {
     syncKeyboardOpen();
   }, 80);
 });
+
+// ── 임시 진단(대화창 키보드) — 실기기 실측용, 원인 확인 후 제거 ──
+setInterval(() => {
+  const el = document.getElementById("kbdiag");
+  if (!el) return;
+  const vv = window.visualViewport;
+  const bar = el.parentElement?.querySelector(".topbar");
+  const barTop = bar ? Math.round(bar.getBoundingClientRect().top) : -1;
+  const rowEl = el.parentElement?.querySelector(".chat-input-row");
+  const rowBottom = rowEl ? Math.round(rowEl.getBoundingClientRect().bottom) : -1;
+  const cs = getComputedStyle(document.documentElement);
+  el.textContent =
+    `iH ${window.innerHeight}\n` +
+    `vvH ${vv ? Math.round(vv.height) : -1}\n` +
+    `vvTop ${vv ? Math.round(vv.offsetTop) : -1}\n` +
+    `--kb ${cs.getPropertyValue("--kb").trim()}\n` +
+    `--vvtop ${cs.getPropertyValue("--vv-top").trim()}\n` +
+    `barTop ${barTop}\n` +
+    `rowBot ${rowBottom}\n` +
+    `fb ${kbFallback ? 1 : 0}`;
+}, 200);
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("./sw.js").catch(() => {});
