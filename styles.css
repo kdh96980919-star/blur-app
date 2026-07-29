@@ -197,27 +197,26 @@ button:focus {
   max-height: var(--vvh);
 }
 
+/* ⚠️ 여기에 기본 animation을 두면 안 된다. 가로 전환이 끝나고 app.js가 nav-* 클래스를
+   떼는 순간 애니메이션 이름이 바뀌면서 기본값이 '새로' 재생돼, 화면이 아래로 내려갔다가
+   번쩍하고 올라온다(실제로 그랬다). 등장 모션은 전부 app.js가 클래스로 지정한다. */
 .screen {
   position: absolute;
   inset: 0;
   display: flex;
   flex-direction: column;
-  animation: riseIn .28s ease both;
   min-width: 0;
   background: var(--scene);
 }
 
-/* 클릭 흔들림 방지 — 주 화면이 그대로면 화면 애니메이션을 끄고,
-   오버레이 구성이 그대로면 시트·오버레이 애니메이션을 끈다.
-   ⚠️ nav-* 가 붙은 화면은 예외 — 그게 지금 재생 중인 화면 전환의 주인공이다
-   (대화방을 열 때처럼 주 화면은 그대로인데 화면은 옆으로 밀려야 하는 경우). */
-.phone.no-anim-main .screen:not([class*="nav-"]),
+/* 클릭 흔들림 방지 — 오버레이 구성이 그대로면 시트·오버레이 애니메이션을 끈다.
+   화면(.screen/.overlay)은 여기 없다 — 이제 기본 애니메이션이 없고, 등장 모션은
+   app.js가 전환이 실제로 일어난 회차에만 클래스로 붙인다. */
 .phone.no-anim-main .welcome-hero,
 .phone.no-anim-main .welcome-auth {
   animation: none;
 }
 
-.phone.no-anim-ov .overlay:not([class*="nav-"]),
 .phone.no-anim-ov .sheet,
 .phone.no-anim-ov .dim,
 .phone.no-anim-ov .viewer-zoom {
@@ -1504,6 +1503,7 @@ button.room-bio-empty {
   box-shadow: 0 4px 12px rgba(96, 176, 224, .28);
 }
 
+/* 기본 animation 없음 — .screen과 같은 이유 */
 .overlay {
   position: absolute;
   inset: 0;
@@ -1511,7 +1511,6 @@ button.room-bio-empty {
   display: flex;
   flex-direction: column;
   background: var(--scene);
-  animation: riseIn .26s ease both;
 }
 
 .dim {
@@ -2431,8 +2430,13 @@ input.bg-swatch {
 
 /* ── 화면 전환 (카카오톡식 가로 슬라이드) ──
    나가는 화면과 들어오는 화면이 같은 시간·같은 이징으로 움직여 한 몸처럼 밀린다.
-   transform만 건드린다 — 레이아웃을 다시 계산하지 않아야 자판 뜰 때처럼 버벅이지 않는다.
-   .screen/.overlay의 riseIn보다 뒤에 있어 이 규칙이 이긴다. */
+   transform만 건드린다 — 레이아웃을 다시 계산하지 않아야 자판 뜰 때처럼 버벅이지 않는다. */
+
+/* 옆으로 밀 방향이 없는 전환(로그인 → 앱처럼 앞뒤 관계가 없는 경우)만 떠오른다 */
+.nav-rise {
+  animation: riseIn .26s ease both;
+}
+
 .nav-in-right {
   animation: navInRight var(--nav-ms) var(--ease-nav) both;
 }

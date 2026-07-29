@@ -884,6 +884,14 @@ function navPages() {
     (el.classList.contains("screen") || el.classList.contains("overlay")) && !el.classList.contains("nav-ghost"));
 }
 
+// 등장 표식을 붙였다가 전환이 끝나면 뗀다. 떼는 이유는 살아남은 노드가 다음 전환에서
+// 같은 표식을 다시 받을 수 있어야 해서다(같은 클래스를 또 붙이면 재생되지 않는다).
+// .screen/.overlay에 기본 animation이 없어야 이 '떼기'가 다른 애니메이션을 깨우지 않는다.
+function stripLater(el, ...classes) {
+  el.classList.add(...classes);
+  setTimeout(() => el.classList.remove(...classes), NAV_MS);
+}
+
 function slidePages(outgoing, incoming, dir, outgoingWasFirst) {
   const phone = phoneEl();
   if (!phone) return;
@@ -891,19 +899,16 @@ function slidePages(outgoing, incoming, dir, outgoingWasFirst) {
   // 그대로 얹혀 새 화면을 가린 채 280ms를 버틴다
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   const ghost = !outgoing.isConnected;
-  if (ghost) outgoing.classList.add("nav-ghost");
-  // 탭 화면이었으면 탭바 앞자리로 되돌린다 — 뒤에 붙이면 유령이 탭바를 덮은 채 같이 밀린다
-  if (ghost) phone.insertBefore(outgoing, outgoingWasFirst ? phone.firstElementChild : null);
-  const out = dir > 0 ? "nav-out-left" : "nav-out-right";
-  const into = dir > 0 ? "nav-in-right" : "nav-in-left";
-  outgoing.classList.add(out);
-  incoming.classList.add(into);
-  setTimeout(() => {
-    // 유령은 버리고, 살아 있던 화면은 표식만 걷어낸다(다음 전환에서 다시 붙어야 하므로)
-    if (ghost) outgoing.remove();
-    else outgoing.classList.remove(out);
-    incoming.classList.remove(into);
-  }, NAV_MS);
+  if (ghost) {
+    outgoing.classList.add("nav-ghost");
+    // 탭 화면이었으면 탭바 앞자리로 되돌린다 — 뒤에 붙이면 유령이 탭바를 덮은 채 같이 밀린다
+    phone.insertBefore(outgoing, outgoingWasFirst ? phone.firstElementChild : null);
+    outgoing.classList.add(dir > 0 ? "nav-out-left" : "nav-out-right");
+    setTimeout(() => outgoing.remove(), NAV_MS);
+  } else {
+    stripLater(outgoing, dir > 0 ? "nav-out-left" : "nav-out-right");
+  }
+  stripLater(incoming, dir > 0 ? "nav-in-right" : "nav-in-left");
 }
 
 function render() {
@@ -994,7 +999,9 @@ function render() {
   const newPage = newPages[newPages.length - 1] || null;
   if (oldPage && newPage && newPage !== oldPage) {
     const dir = (newPages.length - oldPageCount) || tabDelta;
+    // 앞뒤 관계가 없는 전환(로그인 → 앱 등)은 옆으로 밀 방향이 없다 — 떠오르기만 한다
     if (dir) slidePages(oldPage, newPage, dir, oldPageWasFirst);
+    else stripLater(newPage, "nav-rise");
   }
   lastTab = state.tab;
   afterRender();
