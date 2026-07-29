@@ -3580,15 +3580,28 @@ avatarInput.addEventListener("change", async () => {
 //     ①이 조금이라도 반응했으면 폴백은 켜지 않는다(이중 보정 = 빈 띠).
 const viewport = window.visualViewport;
 const KB_MEMO = "blur-kb-height";
-let kbApplied = -1;
-let kbMeasured = 0;
 let kbFallback = false;
+let vvApplied = "";
 
-function applyKeyboardInset(px) {
-  const kb = Math.max(0, Math.round(px));
-  if (kb === kbApplied) return;
-  kbApplied = kb;
-  document.documentElement.style.setProperty("--kb", `${kb}px`);
+// 자판이 떴을 때 앱을 visible 영역(visualViewport)에 정확히 맞춘다.
+// ⚠️ 이 기기 계열은 자판이 뜨면 innerHeight까지 vv.height로 같이 줄어(gap=0)
+//   innerHeight-vv.height 로는 자판을 감지 못 한다. offsetTop으로 안다(실측: vvTop 317).
+//   앱 높이를 vv.height로 고정하고 offsetTop만큼 내려 visible 최상단에 붙이면
+//   상단(대화방 프로필)이 안 잘리고 입력창은 자판 바로 위에 앉는다. 앱이 딱 맞으면
+//   iOS가 더 밀 이유가 없어 offsetTop이 0으로 수렴하며 스스로 안정된다.
+function applyViewport(visibleH, top) {
+  const root = document.documentElement;
+  const key = visibleH > 0 ? `${Math.round(visibleH)}:${Math.round(top)}` : "0";
+  if (key === vvApplied) return;
+  vvApplied = key;
+  if (visibleH > 0) {
+    root.style.setProperty("--vvh", `${Math.round(visibleH)}px`);
+    root.style.setProperty("--vv-top", `${Math.round(top)}px`);
+    root.classList.add("kb-up");
+  } else {
+    root.style.setProperty("--vv-top", "0px");
+    root.classList.remove("kb-up");
+  }
   // 줄어든 높이에 맞춰 대화는 마지막 말풍선이 계속 보이게 한다
   const chat = app.querySelector("[data-chat-scroll]");
   if (chat) chat.scrollTop = chat.scrollHeight;
@@ -3614,20 +3627,15 @@ if (viewport) {
   const syncKeyboard = () => {
     cancelAnimationFrame(kbFrame);
     kbFrame = requestAnimationFrame(() => {
-      const gap = window.innerHeight - viewport.height;
-      // 60px 미만은 키보드가 아니라 브라우저 UI·확대 오차 — 무시한다
-      kbMeasured = gap > 60 ? Math.round(gap) : 0;
       if (viewportReacted()) {
         // 뷰포트가 반응했으면 폴백은 물러난다
         kbFallback = false;
-        // 실측 키보드 높이를 기억해 둔다 — 위 ②번 폴백이 쓸 값
-        if (kbMeasured) { try { localStorage.setItem(KB_MEMO, String(kbMeasured)); } catch { /* 사파리 비공개 모드 */ } }
+        // 자판이 뜬 상태의 visible 높이를 기억 — 아래 폴백이 쓸 값
+        try { localStorage.setItem(KB_MEMO, String(Math.round(viewport.height))); } catch { /* 비공개 모드 */ }
+        applyViewport(viewport.height, viewport.offsetTop);
+      } else if (!kbFallback) {
+        applyViewport(0, 0); // 자판 내려감 — 전체 화면 복귀
       }
-      if (!kbFallback) applyKeyboardInset(kbMeasured);
-      // iOS가 밀어 올린 만큼 도로 내린다. 키보드가 떠 있을 때만 — 사파리에서 손가락으로
-      // 확대했을 때의 offsetTop까지 따라가면 화면이 엉뚱하게 움직인다.
-      const pushed = (kbMeasured || kbFallback) ? Math.round(viewport.offsetTop) : 0;
-      document.documentElement.style.setProperty("--vv-top", `${pushed}px`);
       syncKeyboardOpen();
     });
   };
@@ -3646,11 +3654,11 @@ app.addEventListener("focusin", (event) => {
   setTimeout(() => {
     // 브라우저가 조금이라도 반응했거나 포커스가 떠났으면 폴백은 필요 없다
     if (viewportReacted() || document.activeElement !== field) return;
-    const remembered = Number(localStorage.getItem(KB_MEMO));
+    // 폴백 — vv가 전혀 반응 안 함(코드 focus, '댓글 탭 → 답글'). 기억한 visible 높이로
+    // 앱을 줄인다. 없으면 화면의 52%(자판이 나머지 48%를 덮는다고 어림).
+    const rememberedVh = Number(localStorage.getItem(KB_MEMO));
     kbFallback = true;
-    // 실측값이 없으면 화면의 48%로 어림잡는다(아이폰 한글 자판 + 상단 바 실측 기준).
-    // 조금 넉넉히 잡아 입력창이 자판에 덮이는 것보다 살짝 뜨는 쪽을 택한다.
-    applyKeyboardInset(remembered > 0 ? remembered : Math.round(window.innerHeight * 0.48));
+    applyViewport(rememberedVh > 0 ? rememberedVh : Math.round(window.innerHeight * 0.52), 0);
   }, 350);
 });
 
@@ -3658,10 +3666,10 @@ app.addEventListener("focusout", () => {
   // 다른 입력창으로 옮겨간 것뿐이면 그대로 둔다
   setTimeout(() => {
     if (document.activeElement?.matches?.(TYPING_FIELD)) return;
-    if (kbFallback) {
-      kbFallback = false;
-      applyKeyboardInset(kbMeasured);
-    }
+    kbFallback = false;
+    // 자판이 실제로 아직 떠 있으면(뷰포트 반응) 유지, 아니면 전체 화면 복귀
+    if (viewport && viewportReacted()) applyViewport(viewport.height, viewport.offsetTop);
+    else applyViewport(0, 0);
     syncKeyboardOpen();
   }, 80);
 });
@@ -3680,8 +3688,9 @@ setInterval(() => {
     `iH ${window.innerHeight}\n` +
     `vvH ${vv ? Math.round(vv.height) : -1}\n` +
     `vvTop ${vv ? Math.round(vv.offsetTop) : -1}\n` +
-    `--kb ${cs.getPropertyValue("--kb").trim()}\n` +
+    `--vvh ${cs.getPropertyValue("--vvh").trim()}\n` +
     `--vvtop ${cs.getPropertyValue("--vv-top").trim()}\n` +
+    `kbUp ${document.documentElement.classList.contains("kb-up") ? 1 : 0}\n` +
     `barTop ${barTop}\n` +
     `rowBot ${rowBottom}\n` +
     `fb ${kbFallback ? 1 : 0}`;
