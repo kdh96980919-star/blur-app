@@ -836,6 +836,43 @@ function htmlToNodes(html) {
   return [...holder.content.children];
 }
 
+// 조각 하나가 바뀌면 그 안의 사진·동영상까지 전부 새 노드가 된다. 새로 만든 <img>는
+// 같은 사진이어도 브라우저가 다시 디코드하므로 한두 프레임 비어 보인다 — 그게 깜빡임이다.
+// (필터를 바꿀 때, 댓글 수가 갱신될 때, 무엇이든 조각의 HTML이 한 글자만 달라져도 났다)
+// 그래서 떼어낼 조각의 사진을 모아두고, 새 조각의 같은 사진 자리에 그 노드를 되쓴다.
+// blur 해제 상태를 키에 넣는 이유: 선명↔블러가 실제로 바뀌는 회차에는 재사용하지 않아
+// 1.8s transition이 거꾸로 재생되며 사진이 서서히 흐려지는 일이 없게 한다.
+function mediaKey(el) {
+  const frame = el.closest(".media-frame");
+  const reveal = !frame ? "-" : frame.classList.contains("revealed") ? "r" : frame.classList.contains("blurred") ? "b" : "-";
+  // data-media-key는 src가 바뀌어도 같은 자리임을 알리는 표식 (편집 프리뷰: 필터마다 src가 달라진다)
+  return `${el.tagName}|${el.dataset.mediaKey || el.getAttribute("src") || ""}|${reveal}`;
+}
+
+function poolMedia(nodes, pool) {
+  for (const node of nodes) {
+    for (const el of node.querySelectorAll?.("img,video") || []) {
+      if (!el.getAttribute("src")) continue;
+      const key = mediaKey(el);
+      if (!pool.has(key)) pool.set(key, []);
+      pool.get(key).push(el);
+    }
+  }
+}
+
+function adoptMedia(nodes, pool) {
+  if (!pool.size) return;
+  for (const node of nodes) {
+    for (const el of node.querySelectorAll?.("img,video") || []) {
+      const old = pool.get(mediaKey(el))?.shift();
+      if (!old) continue;
+      for (const { name, value } of [...el.attributes]) if (old.getAttribute(name) !== value) old.setAttribute(name, value);
+      for (const { name } of [...old.attributes]) if (!el.hasAttribute(name)) old.removeAttribute(name);
+      el.replaceWith(old);
+    }
+  }
+}
+
 function patchPhone(className, parts) {
   let phone = app.firstElementChild;
   if (!phone || !phone.classList.contains("phone")) {
@@ -847,8 +884,13 @@ function patchPhone(className, parts) {
   for (let i = 0; i < parts.length; i++) {
     const prev = phoneParts[i];
     if (prev && prev.html === parts[i]) continue;
-    if (prev) prev.nodes.forEach((node) => node.remove());
+    const pool = new Map();
+    if (prev) {
+      poolMedia(prev.nodes, pool);
+      prev.nodes.forEach((node) => node.remove());
+    }
     const nodes = parts[i] ? htmlToNodes(parts[i]) : [];
+    adoptMedia(nodes, pool);
     // 뒤쪽 조각 중 아직 살아 있는 첫 노드 앞에 넣어야 순서가 유지된다
     // (j > i 조각은 이번 회차에 아직 손대지 않았으므로 그대로 DOM에 있다)
     let after = null;
@@ -997,7 +1039,11 @@ function render() {
   }
   const newPages = navPages();
   const newPage = newPages[newPages.length - 1] || null;
-  if (oldPage && newPage && newPage !== oldPage) {
+  // '노드가 바뀌었다'만 보고 전환 애니메이션을 재생하면 안 된다. 내용이 한 글자만 달라져도
+  // 그 화면 조각은 새 노드가 되므로, 필터를 고르거나 댓글 수가 갱신될 때마다 화면이 다시
+  // 등장하며 번쩍였다(뒤 화면이 비쳐 보인다). 실제로 '다른 화면'이 됐을 때만 재생한다 —
+  // 그 판정은 이미 있는 화면 서명(mainSig/ovSig)이 한다.
+  if (oldPage && newPage && newPage !== oldPage && !(mainSame && ovSame)) {
     const dir = (newPages.length - oldPageCount) || tabDelta;
     // 앞뒤 관계가 없는 전환(로그인 → 앱 등)은 옆으로 밀 방향이 없다 — 떠오르기만 한다
     if (dir) slidePages(oldPage, newPage, dir, oldPageWasFirst);
@@ -1656,20 +1702,29 @@ function uploadTransform(up) {
   return `translate(${up.x || 0}px, ${up.y || 0}px) rotate(${up.rot || 0}deg) scale(${up.zoom || 1})`;
 }
 
+// 아트 필터는 CSS로 흉내낼 수 없어 프리뷰도 캔버스로 구운 이미지를 쓴다. 굽는 데 시간이
+// 걸리므로 "고른 필터"와 "지금 그려져 있는 필터"가 잠깐 다르다. 예전에는 그 사이에 원본을
+// 55% 투명으로 깔았는데, 사진이 유령처럼 사라졌다 돌아오는 그 한 순간이 깜빡임이었다.
+// 이제는 새 그림이 준비될 때까지 이전 그림을 그대로 둔다 — 화면이 비는 프레임이 없다.
+function previewFilter(up) {
+  const ready = (name) => name === "none" || Boolean((up.artPreviews || {})[name]);
+  return ready(up.filter) ? up.filter : ready(up.shown) ? up.shown : "none";
+}
+
 function uploadPreview(interactive = false) {
   const up = state.upload;
   if (up.selectedImage) {
-    // 아트 필터는 CSS로 흉내낼 수 없어 프리뷰도 캔버스로 구운 이미지를 보여준다
-    const artUrl = (up.artPreviews || {})[up.filter];
-    const building = ART_FILTERS.includes(up.filter) && !artUrl;
+    const shown = previewFilter(up);
+    const artUrl = (up.artPreviews || {})[shown];
     // 동영상은 원본 필터일 땐 재생하며 보여주고, 아트 필터를 고르면 구운 첫 프레임으로 미리 본다
-    const media = up.selectedVideo && !ART_FILTERS.includes(up.filter)
+    // data-media-key: 필터마다 src가 달라져도 patchPhone이 같은 노드를 되쓰게 하는 표식
+    const media = up.selectedVideo && !ART_FILTERS.includes(shown)
       ? `<video class="media-img" src="${up.selectedVideo}" autoplay muted loop playsinline draggable="false"
-          style="transform:${uploadTransform(up)};transition:none" data-upload-img></video>`
+          style="transform:${uploadTransform(up)};transition:none" data-upload-img data-media-key="upload"></video>`
       : `<img class="media-img" src="${artUrl || up.selectedImage}" alt="" draggable="false"
-          style="transform:${uploadTransform(up)};transition:none${building ? ";opacity:.55" : ""}" data-upload-img>`;
+          style="transform:${uploadTransform(up)};transition:none" data-upload-img data-media-key="upload">`;
     return `<div style="width:${ratioWidth(up.ratio)};max-width:100%;margin:0 auto">
-      <div class="media-frame large revealed upload-frame" data-upload-frame style="aspect-ratio:${up.ratio};--tone:${toneFilter(up.filter)}" ${interactive ? `data-drag-canvas` : ""}>
+      <div class="media-frame large revealed upload-frame" data-upload-frame style="aspect-ratio:${up.ratio};--tone:${toneFilter(shown)}" ${interactive ? `data-drag-canvas` : ""}>
         ${media}
       </div>
     </div>`;
@@ -2854,6 +2909,8 @@ function uploadNext() {
 
 function setUpload(key, value) {
   update((s) => {
+    // 바꾸기 전에 "지금 그려져 있는 필터"를 기억해 둔다 — 새 필터를 굽는 동안 이 그림이 남는다
+    if (key === "filter") s.upload.shown = previewFilter(s.upload);
     if (key === "split") s.upload.split = Number(value);
     else s.upload[key] = value;
   });
@@ -2875,6 +2932,8 @@ async function buildArtPreview(name) {
   canvas.getContext("2d").drawImage(img, 0, 0, w, h);
   applyArtFilter(canvas, name);
   const url = canvas.toDataURL("image/jpeg", .9);
+  // 붙이는 순간부터 디코드하면 그 사이 한 프레임이 빈다 — 먼저 디코드해 두고 상태를 바꾼다
+  await loadImageEl(url).then((el) => el.decode?.()).catch(() => {});
   if (state.upload.selectedImage !== source) return; // 그 사이 다른 사진을 골랐다면 버린다
   update((s) => { s.upload.artPreviews = { ...s.upload.artPreviews, [name]: url }; });
 }

@@ -11,7 +11,7 @@
 
 ```bash
 git clone https://github.com/kdh96980919-star/blur-app.git /tmp/blur-app
-rsync -a --exclude .git --exclude .DS_Store --exclude test /Users/kim/Desktop/anti/10-working/blur-service/ /tmp/blur-app/
+rsync -a --exclude .git --exclude .DS_Store --exclude test --exclude PROGRESS.md /Users/kim/Desktop/anti/10-working/blur-service/ /tmp/blur-app/
 cd /tmp/blur-app && git add -A && git commit -m "update" && git push
 ```
 
@@ -20,6 +20,8 @@ cd /tmp/blur-app && git add -A && git commit -m "update" && git push
 - `/` : 배포 가능한 형태로 다시 구현한 PWA MVP
 - `/prototype/` : 전달받은 `blur 앱 v5.dc.html` 원본 프로토타입을 그대로 복사한 비교 기준
 - `/test/` : 검증 하니스 (배포 제외 — 위 rsync에 `--exclude test`). `test/run.sh`로 실행
+- `PROGRESS.md` : 세션 인수인계용 내부 메모 (배포 제외)
+- `/docs/` : 배포 포함 = **Pages로 공개됨**(2026-07-30 김 결정). 실제 키·비밀은 넣지 말 것
 
 ## 렌더 방식 (2026-07-29, 버벅임·흔들림 수정)
 

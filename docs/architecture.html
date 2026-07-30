@@ -1,0 +1,887 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>blur 내부 구조 — 창업자용 학습 문서</title>
+<link rel="preconnect" href="https://api.fontshare.com" crossorigin>
+<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600,700&display=swap">
+<style>
+@font-face{font-family:'SUIT Variable';font-weight:100 900;font-display:swap;
+  src:url('https://cdn.jsdelivr.net/gh/sun-typeface/SUIT@2/fonts/variable/woff2/SUIT-Variable.woff2') format('woff2-variations');}
+
+:root{
+  color-scheme:light;
+  --bg:#FAFAF7; --surface:#FFFFFF; --text:#101014; --text-muted:#71717A;
+  --line:#E6E4DD; --peri:#97A4E2; --peri-deep:#5E6FCE; --peach:#EFC5A8; --peach-deep:#B4713F;
+  --card:#F3F2ED; --pill:#E4E2F0;
+  --text-grad:linear-gradient(135deg,#6474D6 0%,#9A8BC4 55%,#C98A5E 100%);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;background:var(--bg);color:var(--text);
+  font-family:"PP Neue Montreal","Switzer","SUIT Variable","Apple SD Gothic Neo","Noto Sans KR",sans-serif;
+  font-size:16px;line-height:1.7;letter-spacing:-0.01em;word-break:keep-all;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:var(--peri-deep);text-decoration:none;border-bottom:1px solid transparent;transition:border-color .22s ease}
+a:hover{border-bottom-color:var(--peri-deep)}
+code,kbd{font-family:"SF Mono",ui-monospace,"JetBrains Mono",Menlo,monospace;font-size:.86em;
+  background:#EFEEE8;border-radius:5px;padding:.1em .38em;letter-spacing:0}
+
+/* ── 상단 고정 내비 ── */
+.topbar{position:fixed;top:0;left:0;right:0;z-index:20;background:rgba(250,250,247,.86);
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.topbar-in{max-width:740px;margin:0 auto;padding:14px 24px;display:flex;align-items:baseline;gap:16px}
+.topbar .mark{font-weight:600;letter-spacing:-0.03em;font-size:1.05rem}
+.topbar .sub{font-size:.74rem;letter-spacing:.26em;text-transform:uppercase;color:var(--peri-deep)}
+
+.page{max-width:740px;margin:0 auto;padding:140px 24px 96px;counter-reset:sec}
+
+/* ── 헤더 ── */
+.hero .en{font-size:.74rem;letter-spacing:.26em;text-transform:uppercase;color:var(--peri-deep);
+  display:block;margin-bottom:14px}
+.hero h1{font-size:clamp(2.4rem,6vw,3.6rem);font-weight:600;letter-spacing:-0.03em;line-height:1.08;
+  margin:0 0 20px;text-transform:uppercase;
+  background:var(--text-grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero .lede{font-size:1.05rem;color:var(--text-muted);margin:0 0 28px;max-width:60ch}
+.hero .stamp{border-top:1px solid var(--line);padding-top:16px;font-size:.78rem;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--text-muted);display:flex;gap:24px;flex-wrap:wrap}
+
+/* ── 목차 ── */
+.toc{margin:56px 0 88px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:24px 0}
+.toc h2{font-size:.76rem;font-weight:500;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--text-muted);margin:0 0 14px}
+.toc ol{list-style:none;margin:0;padding:0;columns:2;column-gap:40px}
+.toc li{counter-increment:toc;break-inside:avoid;margin-bottom:5px;font-size:.92rem}
+.toc li a::before{content:counter(toc,decimal-leading-zero);color:var(--peri-deep);
+  font-size:.74rem;letter-spacing:.1em;margin-right:9px}
+.toc ol{counter-reset:toc}
+
+/* ── 섹션 ── */
+section{margin:0 0 88px;counter-increment:sec;scroll-margin-top:96px}
+section>h2{font-size:1.55rem;font-weight:600;letter-spacing:-0.02em;margin:0 0 8px;line-height:1.25}
+section>h2::before{content:counter(sec,decimal-leading-zero);display:block;font-size:.76rem;
+  font-weight:500;letter-spacing:.14em;margin-bottom:6px;color:var(--peri-deep)}
+section>.dek{color:var(--text-muted);margin:0 0 32px;font-size:.98rem}
+h3{font-size:1.15rem;font-weight:600;letter-spacing:-0.015em;margin:40px 0 12px}
+h4{font-size:.86rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--text-muted);margin:28px 0 10px}
+p{margin:0 0 16px}
+ul,ol{margin:0 0 16px;padding-left:20px}
+li{margin-bottom:6px}
+
+/* ── 키-값 리스트 ── */
+.facts{border-top:1px solid var(--line);margin:0 0 24px}
+.facts .row{display:grid;grid-template-columns:120px 1fr;gap:20px;padding:12px 0;
+  border-bottom:1px solid var(--line);align-items:baseline}
+.facts dt,.facts .k{font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin:0}
+.facts dd,.facts .v{margin:0;font-size:.95rem}
+
+/* ── 헤어라인 인덱스 리스트 ── */
+.index-list{border-top:1px solid var(--line)}
+.index-list .item{display:grid;grid-template-columns:1fr 1.7fr;gap:24px;padding:18px 0;
+  border-bottom:1px solid var(--line)}
+.index-list .item h3{margin:0;font-size:1rem;font-weight:600}
+.index-list .item .meta{font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--text-muted);margin-top:4px}
+.index-list .item p{margin:0;font-size:.92rem;color:var(--text-muted)}
+
+/* ── 카드 ── */
+.card{background:var(--card);border-radius:20px;padding:28px;margin:0 0 24px}
+.card>*:last-child{margin-bottom:0}
+.card p,.card li{font-size:.95rem;color:var(--text-muted)}
+.card h3{margin-top:0}
+.card.warn{background:#F4EEE9}
+
+/* ── 태그 ── */
+.tags{display:flex;flex-wrap:wrap;gap:7px;margin:0 0 20px}
+.tag{font-size:.72rem;font-weight:600;border:1px solid var(--pill);border-radius:999px;padding:4px 11px;
+  background:var(--text-grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+
+/* ── 표 ── */
+.tw{overflow-x:auto;margin:0 0 24px}
+table{border-collapse:collapse;width:100%;font-size:.88rem;min-width:520px}
+th,td{text-align:left;padding:10px 14px 10px 0;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:.74rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);font-weight:500;
+  border-bottom:1px solid var(--text)}
+td code{white-space:nowrap}
+tbody tr:last-child td{border-bottom:none}
+
+/* ── 코드 ── */
+pre{background:var(--card);border-radius:14px;padding:18px 20px;overflow-x:auto;margin:0 0 20px;
+  font-family:"SF Mono",ui-monospace,"JetBrains Mono",Menlo,monospace;font-size:.8rem;line-height:1.65;
+  letter-spacing:0;color:#2A2A32}
+pre code{background:none;padding:0;font-size:1em}
+pre .c{color:#9A9790}
+
+/* ── 흐름도 ── */
+.flow{margin:0 0 28px;border-top:1px solid var(--line)}
+.flow .step{display:grid;grid-template-columns:34px 1fr;gap:16px;padding:16px 0;
+  border-bottom:1px solid var(--line)}
+.flow .n{font-size:.74rem;letter-spacing:.08em;color:var(--peri-deep);font-weight:600;padding-top:3px}
+.flow .b strong{display:block;font-size:.98rem;font-weight:600;margin-bottom:3px}
+.flow .b span{font-size:.9rem;color:var(--text-muted)}
+.flow .b .where{display:inline-block;font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--peach-deep);border:1px solid var(--pill);border-radius:999px;padding:1px 8px;margin-left:8px;
+  vertical-align:2px}
+
+/* ── 층 다이어그램 ── */
+.layers{margin:0 0 28px}
+.layer{border:1px solid var(--line);border-radius:16px;padding:18px 22px;margin-bottom:10px;background:var(--surface)}
+.layer .lt{font-size:.74rem;letter-spacing:.14em;text-transform:uppercase;color:var(--peri-deep);
+  margin-bottom:8px;font-weight:500}
+.layer .li{font-size:.9rem;color:var(--text-muted)}
+.layer .li b{color:var(--text);font-weight:600}
+.arrow{text-align:center;color:var(--peri);font-size:1.1rem;line-height:1;margin:2px 0 8px}
+
+/* ── 인용/주의 ── */
+.note{border-left:2px solid var(--peri);padding:2px 0 2px 18px;margin:0 0 24px;
+  font-size:.93rem;color:var(--text-muted)}
+.note b{color:var(--text)}
+
+footer{border-top:1px solid var(--line);padding-top:24px;text-align:center;
+  font-size:.8rem;letter-spacing:.1em;text-transform:uppercase;color:var(--peri-deep)}
+
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="topbar"><div class="topbar-in">
+  <span class="mark">blur</span>
+  <span class="sub">Internals</span>
+</div></div>
+
+<main class="page">
+
+<header class="hero">
+  <span class="en">Founder's Manual</span>
+  <h1>blur는<br>이렇게 굴러간다</h1>
+  <p class="lede">사진 한 장이 폰에서 서버까지 가는 길, 데이터가 어디에 얼마나 쌓이는지,
+    사람 사이 소통이 어떤 경로로 오가는지 — 코드를 안 읽어도 전체를 설명할 수 있게 만든 문서.
+    모든 내용은 실제 저장소의 코드·스키마에서 뽑았다.</p>
+  <div class="stamp">
+    <span>2026-07-30 기준</span>
+    <span>SW v51</span>
+    <span>migration-14</span>
+    <span>지인 베타 라이브</span>
+  </div>
+</header>
+
+<nav class="toc">
+  <h2>목차</h2>
+  <ol>
+    <li><a href="#s1">한 문단 요약</a></li>
+    <li><a href="#s2">기술 스택</a></li>
+    <li><a href="#s3">전체 구조 3층</a></li>
+    <li><a href="#s4">앱이 켜지는 순서</a></li>
+    <li><a href="#s5">로그인</a></li>
+    <li><a href="#s6">데이터가 쌓이는 곳</a></li>
+    <li><a href="#s7">사진이 올라가는 전 과정</a></li>
+    <li><a href="#s8">블러가 풀리는 규칙</a></li>
+    <li><a href="#s9">사람 사이 소통</a></li>
+    <li><a href="#s10">알림이 나가는 길</a></li>
+    <li><a href="#s11">누가 무엇을 보는가 (RLS)</a></li>
+    <li><a href="#s12">남용을 막는 장치</a></li>
+    <li><a href="#s13">화면이 그려지는 방식</a></li>
+    <li><a href="#s14">배포·운영 루틴</a></li>
+    <li><a href="#s15">한계와 다음</a></li>
+    <li><a href="#s16">직접 확인해보기</a></li>
+  </ol>
+</nav>
+
+
+<section id="s1">
+<h2>한 문단 요약</h2>
+<p class="dek">누가 물어보면 이렇게 답하면 된다.</p>
+
+<div class="card">
+<p style="color:var(--text);font-size:1rem">
+“blur는 <b>빌드 도구 없는 정적 PWA</b>다. HTML·CSS·JavaScript 파일 몇 개가 GitHub Pages에 올라가 있고,
+브라우저가 그걸 받아서 앱처럼 돈다. 서버 코드는 우리가 안 짰다 — <b>Supabase</b>(관리형 PostgreSQL)가
+데이터베이스·인증·파일 저장·실시간·서버리스 함수를 다 맡는다.
+앱은 브라우저에서 Supabase에 <b>직접</b> 말을 걸고, ‘누가 무엇을 볼 수 있는가’는
+전부 데이터베이스 안의 <b>RLS 정책</b>이 막는다. 앱을 뜯어봐도 남의 데이터는 안 나온다.”
+</p>
+</div>
+
+<div class="note">
+<b>핵심 감각 하나.</b> 이 앱에는 “우리 서버”가 없다. 중간에 API 서버를 두지 않고
+브라우저 → Postgres로 바로 간다. 그래서 <b>보안 경계가 코드가 아니라 DB 정책</b>에 있다.
+프론트엔드에서 조건문을 지운다고 남의 사진이 보이지는 않는다.
+</div>
+</section>
+
+
+<section id="s2">
+<h2>기술 스택 — 무엇으로 만들었나</h2>
+<p class="dek">쓰이는 것 전부. 프레임워크도 빌드 단계도 없다.</p>
+
+<div class="tags">
+  <span class="tag">Vanilla JS (ES Modules)</span>
+  <span class="tag">PWA</span>
+  <span class="tag">Supabase</span>
+  <span class="tag">PostgreSQL</span>
+  <span class="tag">Deno Edge Function</span>
+  <span class="tag">Web Push (VAPID)</span>
+  <span class="tag">GitHub Pages</span>
+</div>
+
+<div class="tw">
+<table>
+<thead><tr><th>영역</th><th>선택</th><th>왜 / 어디에</th></tr></thead>
+<tbody>
+<tr><td>프론트엔드</td><td>순수 JavaScript, 프레임워크 없음</td>
+  <td>React·빌드 없음. <code>app.js</code> 한 파일(약 3,900줄)이 상태·화면·이벤트를 다 갖고 있다</td></tr>
+<tr><td>스타일</td><td>순수 CSS 한 파일</td><td><code>styles.css</code>(약 2,600줄). 토큰은 파일 맨 위</td></tr>
+<tr><td>폰트</td><td>Pretendard (CDN)</td><td>한글 UI 폰트. 가변 폰트 동적 서브셋</td></tr>
+<tr><td>앱 껍데기</td><td>PWA — manifest + Service Worker</td>
+  <td>홈 화면에 추가하면 주소창 없이 앱처럼. iOS 웹푸시의 전제 조건이기도 하다</td></tr>
+<tr><td>DB</td><td>Supabase PostgreSQL</td><td>테이블 10개. 프로젝트 <code>nzrfzxpqvhdkmogpsscz</code></td></tr>
+<tr><td>인증</td><td>Supabase Auth + OAuth</td><td>카카오·구글만. 자체 비밀번호 없음</td></tr>
+<tr><td>파일 저장</td><td>Supabase Storage</td><td><code>photos</code> 버킷 하나 (public)</td></tr>
+<tr><td>실시간</td><td>Supabase Realtime</td><td>WebSocket. posts·friendships·comments·messages 변경 수신</td></tr>
+<tr><td>서버 로직</td><td>Edge Function (Deno/TypeScript)</td><td><code>notify</code> — 웹 푸시 발송 전용. 그 외 서버 코드 없음</td></tr>
+<tr><td>푸시</td><td>Web Push + VAPID</td><td>npm <code>web-push</code>. 잠금화면 알림</td></tr>
+<tr><td>호스팅</td><td>GitHub Pages</td><td><code>kdh96980919-star/blur-app</code> 저장소, main 브랜치 루트</td></tr>
+<tr><td>검증</td><td>Playwright 하니스</td><td><code>test/run.sh</code> — 배포물에는 안 들어간다</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>“어떤 모델을 썼나”에 대한 답</h3>
+<p>blur에는 <b>AI 모델이 들어가 있지 않다.</b> 사진 분류도, 추천 알고리즘도, LLM 호출도 없다.
+앱을 <em>만드는 데</em> AI를 썼을 뿐, 돌아가는 앱 안에는 모델이 없다. 이건 약점이 아니라 비용·프라이버시·속도에서 전부 유리한 선택이고,
+질문받으면 그대로 답하면 된다.</p>
+<p>사진에 걸리는 “필터”도 모델이 아니라 <b>손으로 짠 캔버스 픽셀 연산</b>이다 —
+grain(입자), glass(유리), halftone(망점), naive(단순화), data(데이터) 5종이 <code>app.js</code>의
+<code>artGrain()</code>·<code>artGlass()</code> 같은 함수로 구현돼 있다. 전부 사용자 폰에서 계산된다.</p>
+</section>
+
+
+<section id="s3">
+<h2>전체 구조 3층</h2>
+<p class="dek">화살표 방향이 곧 “누가 누구를 부르는가”다.</p>
+
+<div class="layers">
+  <div class="layer">
+    <div class="lt">1층 — 사용자의 폰 (브라우저)</div>
+    <div class="li"><b>index.html</b> 껍데기 · <b>app.js</b> 상태와 화면 · <b>styles.css</b> ·
+      <b>backend.js</b> 서버 호출 창구 · <b>sw.js</b> 오프라인 캐시와 푸시 수신<br>
+      사진 편집(자르기·회전·필터)과 동영상 인코딩도 전부 여기서 일어난다</div>
+  </div>
+  <div class="arrow">↓ HTTPS · WebSocket ↑</div>
+  <div class="layer">
+    <div class="lt">2층 — Supabase (우리가 관리 안 하는 서버)</div>
+    <div class="li"><b>Auth</b> 카카오·구글 로그인, JWT 발급 · <b>PostgreSQL</b> 테이블 10개 + RLS 정책 + 트리거 ·
+      <b>Storage</b> photos 버킷 · <b>Realtime</b> 변경 스트리밍 · <b>Edge Function</b> notify</div>
+  </div>
+  <div class="arrow">↓ Web Push (VAPID) ↓</div>
+  <div class="layer">
+    <div class="lt">3층 — 푸시 중계망 (애플·구글)</div>
+    <div class="li">APNs / FCM 같은 브라우저 벤더의 푸시 서비스. 우리는 여기에 <b>암호화된 메시지를 맡기고</b>,
+      그쪽이 잠금화면까지 배달한다. 앱이 꺼져 있어도 도착하는 이유</div>
+  </div>
+</div>
+
+<div class="note">
+브라우저가 Supabase를 직접 부른다는 게 이 구조의 전부다.
+그래서 <b>공개된 anon 키</b>(<code>config.js</code>에 그대로 들어 있다)를 누가 가져가도 문제가 없다 —
+그 키는 “로그인 화면에 들어갈 자격”일 뿐이고, 실제 권한은 로그인 후 발급되는 JWT와 DB의 RLS가 정한다.
+</div>
+</section>
+
+
+<section id="s4">
+<h2>앱이 켜지는 순서</h2>
+<p class="dek"><code>boot()</code> 함수 한 번에 일어나는 일.</p>
+
+<div class="flow">
+  <div class="step"><div class="n">01</div><div class="b">
+    <strong>Service Worker가 파일을 준다 <span class="where">폰</span></strong>
+    <span>앱 파일은 <b>네트워크 우선</b>(항상 최신 배포를 받고, 끊기면 캐시로). 반대로 Supabase API 응답은 <b>절대</b> 캐시하지 않는다 — 남의 데이터가 굳어버리면 안 되니까</span>
+  </div></div>
+  <div class="step"><div class="n">02</div><div class="b">
+    <strong>세션 확인</strong>
+    <span><code>getSession()</code>. 로그인 흔적이 없으면 웰컴 화면, 오프라인이면 전용 오프라인 화면(웰컴으로 튕기지 않는다)</span>
+  </div></div>
+  <div class="step"><div class="n">03</div><div class="b">
+    <strong>OAuth 잔여물 청소</strong>
+    <span>로그인 후 주소창에 붙어 오는 <code>?code=</code>·<code>#access_token=</code>을 <code>history.replaceState</code>로 지운다</span>
+  </div></div>
+  <div class="step"><div class="n">04</div><div class="b">
+    <strong>데이터 8종을 한꺼번에 <span class="where">서버</span></strong>
+    <span><code>loadAll()</code>이 프로필·게시물(+댓글)·친구관계·내 블러해제기록·허브주제·친구추천·메시지·내 연락처해시를
+      <code>Promise.all</code>로 동시에 받는다. 순차 호출이 아니라 병렬이라 첫 화면이 빠르다</span>
+  </div></div>
+  <div class="step"><div class="n">05</div><div class="b">
+    <strong>서버 행 → 앱 상태로 변환</strong>
+    <span><code>mapProfile</code>·<code>mapPost</code>가 DB 컬럼명을 앱 내부 이름으로 바꾼다. 내 글은 자동으로 ‘열람됨’ 처리</span>
+  </div></div>
+  <div class="step"><div class="n">06</div><div class="b">
+    <strong>첫 로그인이면 이름·아이디 설정 화면</strong>
+    <span><code>profiles.setup_done</code>이 false면 setup 화면. 이름은 카카오·구글 프로필에서 미리 채워준다</span>
+  </div></div>
+  <div class="step"><div class="n">07</div><div class="b">
+    <strong>실시간 구독 시작</strong>
+    <span><code>subscribeRealtime</code>이 4개 테이블을 구독. 변경 신호가 오면 450ms 디바운스 뒤 <code>loadAll</code>을 다시 돌린다.
+      탭에 돌아올 때(<code>visibilitychange</code>)도 마찬가지</span>
+  </div></div>
+</div>
+
+<div class="note">
+<b>알아둘 설계 습관:</b> 실시간 이벤트가 와도 “바뀐 그 행만” 고쳐 넣지 않고 <b>전체를 다시 받는다.</b>
+데이터가 작을 때는 이게 훨씬 안전하다(부분 갱신은 상태 불일치 버그의 온상). 사용자가 수백 명을 넘기면 이 결정을 다시 봐야 한다.
+</div>
+</section>
+
+
+<section id="s5">
+<h2>로그인 — 왜 비밀번호가 없나</h2>
+<p class="dek">2026-07-19에 자체 계정을 전부 버리고 소셜 로그인 전용으로 갈아탔다 (migration-09).</p>
+
+<div class="flow">
+  <div class="step"><div class="n">01</div><div class="b">
+    <strong>“카카오로 계속하기”</strong>
+    <span><code>signInWithOAuth({ provider })</code> → 카카오 동의 화면으로 <b>페이지 자체가 이동</b>한다</span>
+  </div></div>
+  <div class="step"><div class="n">02</div><div class="b">
+    <strong>카카오가 Supabase로, Supabase가 우리 앱으로 돌려보낸다</strong>
+    <span>돌아올 때 URL에 인증 코드가 붙어 오고, Supabase 클라이언트가 그걸 세션(JWT)으로 바꿔 브라우저에 저장한다</span>
+  </div></div>
+  <div class="step"><div class="n">03</div><div class="b">
+    <strong>DB 트리거가 프로필을 자동 생성 <span class="where">서버</span></strong>
+    <span><code>auth.users</code>에 행이 생기는 순간 <code>handle_new_user()</code> 트리거가 <code>profiles</code> 행을 만든다. 앱이 따로 요청하지 않는다</span>
+  </div></div>
+  <div class="step"><div class="n">04</div><div class="b">
+    <strong>이름·아이디 설정</strong>
+    <span>아이디는 <b>영문 소문자·숫자 4~16자</b>, 전역 유일(대소문자 무시). 중복 검사는 <code>is_handle_available</code> RPC를 타이핑 중 디바운스로 호출</span>
+  </div></div>
+</div>
+
+<h4>이 선택으로 사라진 것들</h4>
+<ul>
+<li>비밀번호 저장·해싱·재설정 메일 — 전부 카카오·구글이 책임진다</li>
+<li>복구 코드 시스템 (migration-08에 있던 것을 09에서 제거)</li>
+<li>합성 이메일 주소 방식 (<code>@아이디</code>로 로그인하려고 만들었던 편법)</li>
+</ul>
+<p>대신 <b>카카오·구글 콘솔 설정에 의존</b>하게 됐다. 리다이렉트 URL 허용 목록이나 동의 항목이 어긋나면
+로그인이 통째로 죽는다 — 도메인을 바꾸거나 계정을 옮길 때 반드시 같이 손봐야 하는 지점.
+절차는 <code>docs/oauth-setup.md</code>.</p>
+</section>
+
+
+<section id="s6">
+<h2>데이터가 쌓이는 곳</h2>
+<p class="dek">테이블 10개 + 스토리지 버킷 1개. 이게 blur가 가진 데이터의 전부다.</p>
+
+<h3>테이블 10종</h3>
+<div class="tw">
+<table>
+<thead><tr><th>테이블</th><th>담는 것</th><th>한 행이 생기는 순간</th><th>지워지는 때</th></tr></thead>
+<tbody>
+<tr><td><code>profiles</code></td><td>이름·아이디·색·이모지·아바타·소개·공개여부·알림설정·차단여부</td>
+  <td>가입 즉시 (트리거)</td><td>탈퇴</td></tr>
+<tr><td><code>hubs</code></td><td>날짜별 오늘의 주제 한 줄</td><td><b>운영자가 SQL로 직접 넣을 때만</b></td><td>지우지 않음</td></tr>
+<tr><td><code>posts</code></td><td>사진 URL·캡션·비율·필터·공개범위·보관여부</td>
+  <td>사진 게시 (하루 1장)</td><td>본인 영구삭제 / 탈퇴</td></tr>
+<tr><td><code>comments</code></td><td>댓글 본문(1~100자)</td><td>댓글 작성</td><td>본인 삭제 / 글 삭제 / 탈퇴</td></tr>
+<tr><td><code>reveals</code></td><td>“누가 어떤 사진의 블러를 풀었나”</td><td>사진 탭</td><td>글 삭제 / 탈퇴</td></tr>
+<tr><td><code>friendships</code></td><td>두 사람 관계 1행 (pending·accepted·blocked)</td><td>친구 요청</td><td>친구 삭제 / 탈퇴</td></tr>
+<tr><td><code>messages</code></td><td>1:1 대화 본문·읽음 시각</td><td>DM 전송</td><td>보낸 사람 삭제 / 탈퇴</td></tr>
+<tr><td><code>push_subscriptions</code></td><td>기기별 푸시 주소 + 암호화 키 2개</td><td>알림 켜기</td><td>알림 끄기 / 만료 감지 시 자동</td></tr>
+<tr><td><code>contact_hashes</code></td><td>내 전화번호의 <b>해시만</b> (원본 번호 아님)</td><td>연락처 친구찾기 등록</td><td>본인 삭제 / 탈퇴</td></tr>
+<tr><td><code>reports</code></td><td>신고 대상·사유</td><td>신고 접수</td><td>지우지 않음</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>얼마나 쌓이나 — 실제 크기 감각</h3>
+<p>텍스트 행은 사실상 무게가 없다. 댓글 100자면 넉넉잡아 <b>0.3KB</b>, DM도 비슷하다.
+사용자 100명이 하루 100개 댓글을 써도 하루 <b>30KB</b>. Supabase 무료 티어 DB 500MB를 텍스트로 채우려면 수십 년이 걸린다.</p>
+<p><b>부담은 전부 사진·동영상이다.</b> 그리고 이건 앱이 올리기 전에 미리 줄여서 보낸다.</p>
+
+<div class="facts">
+  <div class="row"><p class="k">사진</p><p class="v">긴 변 1080px, JPEG 품질 0.88 — <b>대략 150~400KB</b></p></div>
+  <div class="row"><p class="k">동영상</p><p class="v">최대 5초, 720p(무거운 필터는 540p), 3Mbps, 무음 — <b>대략 1.5~2MB</b></p></div>
+  <div class="row"><p class="k">하루 상한</p><p class="v">한 사람당 <b>게시물 1개</b> (DB 제약 <code>one_post_per_hub</code>)</p></div>
+  <div class="row"><p class="k">100명 × 30일</p><p class="v">전원 사진이면 <b>약 0.9GB</b>, 전원 동영상이면 <b>약 5GB</b></p></div>
+  <div class="row"><p class="k">무료 티어</p><p class="v">Storage 1GB — <b>여기가 먼저 찬다</b>. 사진만 써도 3~4개월</p></div>
+</div>
+
+<div class="card warn">
+<h3>“하루 한 장” 제약이 사실은 비용 설계다</h3>
+<p>UX 컨셉으로 보이는 <code>one_post_per_hub</code> 제약이 스토리지 증가율을 사용자 수에 <b>선형으로 못박는다.</b>
+사용자가 폭주해도 하루 저장량은 (사용자 수 × 최대 2MB)를 절대 못 넘는다. 예측 가능한 비용 — 이게 이 제약의 숨은 값어치다.</p>
+</div>
+
+<h3>사진 파일이 실제로 놓이는 자리</h3>
+<pre><code>photos/                          <span class="c">← 버킷 (public)</span>
+  {user_id}/                     <span class="c">← 사람마다 자기 폴더</span>
+    post-1783429...-a3f9.jpg     <span class="c">← 게시물 사진</span>
+    post-1783512...-b71c.mp4     <span class="c">← 동영상</span>
+    avatar-1783440...-c2d8.jpg   <span class="c">← 프로필 사진</span></code></pre>
+<p>업로드는 <b>본인 폴더에만</b> 가능하다 — Storage 정책이 경로 첫 칸(<code>{user_id}</code>)을
+로그인한 사람의 ID와 비교한다. 남의 폴더에 못 쓰고 남의 파일을 못 지운다.</p>
+
+<div class="note">
+<b>알고 있어야 할 트레이드오프:</b> 버킷이 <code>public</code>이다. 즉 <b>사진 URL을 아는 사람은 로그인 없이도 그 이미지를 볼 수 있다.</b>
+블러는 화면 효과(CSS)일 뿐 파일 자체는 선명하다. URL이 추측 불가능한 무작위 문자열이라 실질 위험은 낮지만,
+“유출되면 안 되는 사진”을 담는 서비스로 크려면 <b>비공개 버킷 + 서명 URL</b>로 전환해야 한다. 스키마 주석에도 그렇게 적혀 있다.
+</div>
+
+<h3>브라우저에 남는 것</h3>
+<p>서버가 아닌 폰에도 조금 남는다 — 로그인 세션(JWT), 배경색 취향, 알림을 마지막으로 본 시각.
+사진이나 대화 내용은 로컬에 저장하지 않는다. 초기 MVP는 전부 로컬에 뒀지만 Supabase 연동 때 걷어냈다.</p>
+</section>
+
+
+<section id="s7">
+<h2>사진 한 장이 올라가는 전 과정</h2>
+<p class="dek">탭에서 DB 행까지. 무거운 일은 전부 폰이 한다.</p>
+
+<div class="flow">
+  <div class="step"><div class="n">01</div><div class="b">
+    <strong>고르기 <span class="where">폰</span></strong>
+    <span>카메라 또는 앨범. <code>&lt;input type="file"&gt;</code> 하나로 끝 — 네이티브 권한 요청 코드가 필요 없는 게 웹의 이점</span>
+  </div></div>
+  <div class="step"><div class="n">02</div><div class="b">
+    <strong>1차 축소 <span class="where">폰</span></strong>
+    <span>읽자마자 긴 변 1400px·품질 0.82로 줄인다. 원본 4000px 사진을 메모리에 들고 다니면 편집 화면이 버벅인다.
+      동영상은 여기서 <b>길이를 검사해 6초 이상이면 즉시 거부</b></span>
+  </div></div>
+  <div class="step"><div class="n">03</div><div class="b">
+    <strong>편집 <span class="where">폰</span></strong>
+    <span>비율(고른 사진의 실제 비율이 기본값)·확대·회전·이동·필터 5종. 이 단계는 아직 <b>미리보기일 뿐</b> — 원본은 그대로다</span>
+  </div></div>
+  <div class="step"><div class="n">04</div><div class="b">
+    <strong>굽기 (bake) <span class="where">폰</span></strong>
+    <span>“올리기”를 누르는 순간 캔버스에 실제로 그린다. 사진은 1080px·품질 0.88로 한 장,
+      동영상은 프레임마다 필터를 칠하며 <code>MediaRecorder</code>로 최대 5초 재인코딩(무음)</span>
+  </div></div>
+  <div class="step"><div class="n">05</div><div class="b">
+    <strong>Storage 업로드 <span class="where">서버</span></strong>
+    <span><code>{내ID}/post-{시각}-{무작위6자}.jpg</code>로 올리고 공개 URL을 돌려받는다</span>
+  </div></div>
+  <div class="step"><div class="n">06</div><div class="b">
+    <strong>posts에 행 삽입 <span class="where">서버</span></strong>
+    <span>사진 URL·캡션·비율·필터·공개범위를 담아 insert. <b>DB가 여기서 두 번 검사한다</b> —
+      오늘 이미 올렸으면 거부(<code>one_post_per_hub</code>), 날짜가 오늘이 아니어도 거부</span>
+  </div></div>
+  <div class="step"><div class="n">07</div><div class="b">
+    <strong>친구 화면에 자동 등장 <span class="where">모두</span></strong>
+    <span>Realtime이 <code>posts</code> INSERT를 흘려보내고, 볼 자격이 있는 사람의 앱만 화면을 갱신한다</span>
+  </div></div>
+</div>
+
+<h4>실패해도 안 깨지게 만든 자리</h4>
+<ul>
+<li>아트 필터가 터지면 <b>필터 없는 사진으로 그냥 올라간다</b> — 게시가 실패하지 않는다</li>
+<li>동영상 필터가 중간에 터지면 나머지 프레임만 무필터로 계속 굽는다</li>
+<li>캔버스 굽기 자체가 실패하면 편집 전 이미지로 폴백</li>
+</ul>
+<p>“사용자가 올리려던 것은 어떻게든 올라간다”는 원칙이 코드에 세 겹으로 들어가 있다.</p>
+</section>
+
+
+<section id="s8">
+<h2>블러가 풀리는 규칙</h2>
+<p class="dek">이 앱의 이름값을 하는 부분. 생각보다 단순하다.</p>
+
+<div class="facts">
+  <div class="row"><p class="k">블러 정체</p><p class="v">CSS <code>filter: blur(29px)</code>. 서버가 흐린 이미지를 주는 게 아니라 화면에서 흐리게 그린다</p></div>
+  <div class="row"><p class="k">푸는 법</p><p class="v">사진 아무 데나 탭. 애니메이션으로 <code>blur(0)</code>이 된다</p></div>
+  <div class="row"><p class="k">기록</p><p class="v"><code>reveals</code>에 (나, 그 사진) 한 행. <b>당일 되돌릴 수 없다</b></p></div>
+  <div class="row"><p class="k">오늘만</p><p class="v">지난 허브 사진은 처음부터 선명하다. 블러는 ‘오늘’의 긴장감을 위한 장치</p></div>
+  <div class="row"><p class="k">내 글</p><p class="v">항상 선명 (앱이 로드 시 자동으로 열람 처리)</p></div>
+  <div class="row"><p class="k">방문자 수</p><p class="v">내 오늘 사진의 <code>reveals</code> 개수(나 제외) = 룸 탭의 “N명이 내 오늘을 열어봤어요”</p></div>
+</div>
+
+<div class="note">
+<b>정직하게 알아둘 것:</b> 블러는 화면 효과라 개발자 도구로 CSS를 지우면 풀린다.
+누가 봤는지 기록도 안 남는다. 이건 <b>보안 기능이 아니라 상호성(reciprocity) 장치</b>다 —
+“보려면 기록이 남는다”는 사회적 약속이지 기술적 봉쇄가 아니다. 그 구분을 아는 채로 쓰면 된다.
+</div>
+</section>
+
+
+<section id="s9">
+<h2>사람 사이 소통</h2>
+<p class="dek">친구 → 댓글 → DM. 세 개 다 같은 원리로 돈다.</p>
+
+<h3>친구 관계 — 두 사람에 한 행</h3>
+<p>A와 B가 친구면 행이 <b>하나</b>다(두 개가 아니라). 저장할 때 UUID 크기순으로 정렬해서
+<code>user_a &lt; user_b</code>로 고정한다. 덕분에 “관계가 이미 있나?”를 확인하는 질의가 항상 단순해지고,
+중복 요청이 기본키 제약에 걸려 저절로 막힌다.</p>
+<div class="tw">
+<table>
+<thead><tr><th>status</th><th>뜻</th><th>바꾸는 사람</th></tr></thead>
+<tbody>
+<tr><td><code>pending</code></td><td>요청 보냄, 대기 중</td><td>보낸 사람이 행을 만든다</td></tr>
+<tr><td><code>accepted</code></td><td>친구</td><td><b>요청받은 쪽만</b> 수락 가능 (자기 요청 자가수락 차단, migration-07)</td></tr>
+<tr><td><code>blocked</code></td><td>차단</td><td>당사자 누구나. 차단당한 쪽은 행을 지우고 재요청할 수 없다</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>친구를 찾는 3가지 경로</h3>
+<div class="index-list">
+  <div class="item">
+    <div><h3>아이디 검색</h3><div class="meta">직접</div></div>
+    <p>@아이디로 정확히 찾는다. 프로필 기본정보는 누구나 조회 가능하도록 열려 있다 — 검색이 성립하려면 필요한 개방이다.</p>
+  </div>
+  <div class="item">
+    <div><h3>친구의 친구</h3><div class="meta">RPC · friend_suggestions</div></div>
+    <p>내 친구의 친구를 서버 함수가 계산해서 추천한다. 겹치는 친구 수도 같이 온다.</p>
+  </div>
+  <div class="item">
+    <div><h3>연락처 매칭</h3><div class="meta">해시 · 안드로이드 크롬만</div></div>
+    <p>전화번호 <b>원본은 서버에 절대 안 간다.</b> 폰에서 번호를 정규화해 SHA-256으로 해싱하고,
+      해시만 보내 교집합을 받는다. 그마저도 “내가 이미 가진 번호”와만 대조되므로 임의 번호의 가입 여부를 캐낼 수 없다.</p>
+  </div>
+</div>
+
+<h3>댓글과 DM</h3>
+<p>댓글은 <code>comments</code>(1~100자), DM은 <code>messages</code>에 그냥 행으로 쌓인다.
+읽음 처리는 <code>read_at</code>에 시각을 찍는 것뿐이다.
+DM 본문은 <b>보낸 뒤 수정할 수 없다</b> — 읽음 처리 정책이 본문 수정까지 열어주던 구멍을 migration-07에서 막았다.
+삭제는 보낸 사람만, 그리고 지우면 상대 화면에서도 사라진다.</p>
+
+<h3>화면이 실시간으로 바뀌는 이유</h3>
+<pre><code>내가 댓글을 쓴다
+  → comments 테이블에 INSERT
+    → Postgres 논리 복제(logical replication)가 변경을 흘린다
+      → Supabase Realtime이 <span class="c">RLS를 통과하는 사람에게만</span> WebSocket으로 전달
+        → 상대 앱의 subscribeRealtime 콜백 실행
+          → 450ms 디바운스 후 loadAll() → 화면 갱신</code></pre>
+<p>여기서도 RLS가 적용된다는 게 핵심이다. 실시간 채널을 구독해도 <b>볼 자격이 없는 행은 애초에 오지 않는다.</b></p>
+</section>
+
+
+<section id="s10">
+<h2>알림이 나가는 길</h2>
+<p class="dek">2026-07-29에 구조를 통째로 바꾼 부분 (migration-14). 왜 바꿨는지가 이 섹션의 핵심.</p>
+
+<h3>예전 방식과 무엇이 달랐나</h3>
+<div class="tw">
+<table>
+<thead><tr><th></th><th>~v50 (은퇴)</th><th>v51~ (현재)</th></tr></thead>
+<tbody>
+<tr><td>누가 발송을 시작</td><td><b>행동한 사람의 폰</b></td><td><b>데이터베이스 트리거</b></td></tr>
+<tr><td>실패하는 경우</td><td>댓글 직후 앱이 죽거나 네트워크가 끊기면 <b>알림이 조용히 증발</b></td>
+  <td>행이 저장됐으면 알림도 반드시 나간다</td></tr>
+<tr><td>인증 근거</td><td>사용자 로그인 JWT</td><td>DB와 함수만 아는 <b>공유 비밀</b></td></tr>
+</tbody>
+</table>
+</div>
+<p>바뀐 원칙 한 줄: <b>“데이터가 남았으면 알림도 나간다.”</b> 발송 책임을 클라이언트에서 데이터베이스로 옮긴 것.</p>
+
+<div class="flow">
+  <div class="step"><div class="n">01</div><div class="b">
+    <strong>행이 들어간다</strong>
+    <span><code>comments</code>·<code>messages</code>·<code>friendships</code>에 INSERT/UPDATE</span>
+  </div></div>
+  <div class="step"><div class="n">02</div><div class="b">
+    <strong>트리거가 깨어난다 <span class="where">Postgres</span></strong>
+    <span><code>push_notify(종류, 보낸이, 받는이)</code>. 금고(Vault)에서 공유 비밀을 꺼내
+      <code>pg_net</code>으로 Edge Function에 HTTP POST</span>
+  </div></div>
+  <div class="step"><div class="n">03</div><div class="b">
+    <strong>notify 함수가 검사한다 <span class="where">Deno</span></strong>
+    <span>① 공유 비밀 헤더가 맞나 ② 자기 자신에게 보내는 건 아닌가
+      ③ <b>두 사람 사이에 friendships 행이 있나</b> — 모르는 사람에게 알림이 가는 걸 여기서 막는다</span>
+  </div></div>
+  <div class="step"><div class="n">04</div><div class="b">
+    <strong>문구를 서버가 만든다</strong>
+    <span>“{이름}님이 댓글을 남겼어요” 4종. <b>클라이언트가 문구를 못 정한다</b> — 임의 문자열로 알림을 보내는 걸 원천 차단</span>
+  </div></div>
+  <div class="step"><div class="n">05</div><div class="b">
+    <strong>대상자의 모든 기기로 발송</strong>
+    <span>VAPID로 서명·암호화해 브라우저 벤더 푸시 서버로. 404/410(만료)이 오면 그 구독을 자동 삭제</span>
+  </div></div>
+  <div class="step"><div class="n">06</div><div class="b">
+    <strong>Service Worker가 받는다 <span class="where">상대 폰</span></strong>
+    <span>앱이 꺼져 있어도 <code>sw.js</code>의 push 이벤트가 깨어나 잠금화면 알림을 띄운다</span>
+  </div></div>
+</div>
+
+<h4>인증 설계에서 배울 점</h4>
+<p>트리거가 함수를 부를 때 “진짜 우리 DB다”를 증명해야 하는데, Supabase 키를 쓰지 <b>않았다.</b>
+키 형식이 두 가지(레거시 <code>eyJ...</code> / 신형 <code>sb_secret_...</code>)라 프로젝트마다 무엇이 들어올지 달라 깨지기 쉬웠기 때문.
+그래서 <b>우리가 만든 무작위 비밀</b>을 Vault와 함수 시크릿 양쪽에 두고 그것만 믿는다.
+Authorization 헤더의 anon 키는 플랫폼 관문을 통과하는 용도일 뿐, 인증 근거가 아니다(공개된 값이니까).</p>
+
+<div class="card warn">
+<h3>이 구조의 유일한 함정</h3>
+<p>DB·함수·앱 <b>셋의 버전이 맞아야</b> 알림이 나간다. 마이그레이션만 돌리고 함수를 재배포하지 않으면
+구버전 함수가 트리거 호출을 무시해서 <b>알림이 조용히 끊긴다.</b> 실제로 한 번 겪었다.</p>
+<p>순서는 항상 ① SQL 실행 → ② <code>supabase functions deploy notify</code> → ③ 앱 배포.
+그리고 <b>함수 배포는 반드시 원본 폴더에서</b> — <code>/tmp/blur-app</code>은 정적 파일 클론이라 함수와 무관하다.</p>
+</div>
+
+<h4>iOS에서만 다른 것</h4>
+<ul>
+<li><b>홈 화면에 추가(PWA 설치) 후에만</b> 웹 푸시가 동작한다 (iOS 16.4+). 사파리 탭에서는 안 온다</li>
+<li>iOS는 알림에 “from blur”를 강제로 붙인다 — 제거 불가라 안드로이드 기준으로 문구를 최적화했다</li>
+</ul>
+</section>
+
+
+<section id="s11">
+<h2>누가 무엇을 보는가 — RLS</h2>
+<p class="dek">blur의 보안은 전부 여기 있다. 이 섹션 하나만 이해해도 절반은 안 것.</p>
+
+<p><b>RLS(Row Level Security)</b>는 “이 사람이 이 <em>행</em>을 볼 수 있나”를 데이터베이스가 직접 판단하는 기능이다.
+앱이 <code>select * from posts</code>를 던져도, 서버는 그 사람이 볼 자격이 있는 행만 돌려준다.
+프론트엔드가 뚫려도, 누가 API를 직접 호출해도 결과는 같다.</p>
+
+<h3>게시물이 보이는 조건 — 셋 중 하나</h3>
+<pre><code>보인다 ⟸  ① 내가 쓴 글
+      또는 ② 작성자와 내가 <b>accepted 친구</b>
+      또는 ③ 글이 '모두 공개'이고 <b>+ 작성자 계정이 공개</b></code></pre>
+<p>③의 뒷조건이 중요하다. 계정을 비공개로 바꾸면 <b>이미 올린 ‘모두 공개’ 글까지 즉시 숨는다.</b>
+정책이 저장 시점이 아니라 <b>조회 시점</b>에 판단하기 때문 — 소급 적용이 공짜로 따라온다.</p>
+
+<h3>테이블별 규칙</h3>
+<div class="tw">
+<table>
+<thead><tr><th>테이블</th><th>읽기</th><th>쓰기</th></tr></thead>
+<tbody>
+<tr><td><code>profiles</code></td><td>로그인하면 전부 (검색이 성립하려면 필요)</td><td>본인 행만</td></tr>
+<tr><td><code>posts</code></td><td>위 3조건</td><td>본인, 그리고 <b>날짜가 오늘일 때만</b></td></tr>
+<tr><td><code>comments</code></td><td>그 게시물을 볼 수 있는 사람</td><td>같음. 삭제는 본인 댓글만</td></tr>
+<tr><td><code>reveals</code></td><td>내 기록 + <b>내 글의 열람 기록</b>(방문자 수 집계용)</td><td>본인 것만, 볼 수 있는 글에만</td></tr>
+<tr><td><code>friendships</code></td><td>당사자 둘만</td><td>요청은 본인 명의 pending으로만</td></tr>
+<tr><td><code>messages</code></td><td>당사자 둘만</td><td>본문 수정 불가. 삭제는 보낸 사람만</td></tr>
+<tr><td><code>push_subscriptions</code></td><td><b>본인만</b></td><td>본인만. 발송은 service_role(함수)만</td></tr>
+<tr><td><code>contact_hashes</code></td><td><b>본인만</b> — 남의 해시는 누구도 못 읽는다</td><td>본인만</td></tr>
+<tr><td><code>reports</code></td><td><b>아무도 못 읽는다</b> (운영자 대시보드만)</td><td>본인 명의로 접수만</td></tr>
+<tr><td><code>hubs</code></td><td>로그인하면 전부</td><td><b>불가</b> — 운영자가 SQL로만</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="note">
+<b>이 표에서 읽어야 할 것:</b> 어떤 테이블도 “전부 읽기 + 전부 쓰기”가 아니다.
+그리고 앱 코드에 없는 규칙이 DB에는 있다 — 예를 들어 <code>posts</code>에 <b>어제 날짜로 글을 쓰는 건 불가능</b>하다.
+앱 화면에 그런 버튼이 없어서가 아니라, 정책이 거부하기 때문이다.
+</div>
+</section>
+
+
+<section id="s12">
+<h2>남용을 막는 장치</h2>
+<p class="dek">베타 규모에선 안 보이지만 사람이 늘면 반드시 필요한 것들. 이미 다 들어가 있다.</p>
+
+<h3>도배 방지 — DB 트리거가 세고 거부한다</h3>
+<div class="facts">
+  <div class="row"><p class="k">댓글</p><p class="v">1시간에 60개까지</p></div>
+  <div class="row"><p class="k">DM</p><p class="v">1시간에 300개까지</p></div>
+  <div class="row"><p class="k">친구 요청</p><p class="v">하루 50개까지</p></div>
+  <div class="row"><p class="k">신고</p><p class="v">하루 30개까지</p></div>
+</div>
+<p>앱에서 막는 게 아니라 <b>INSERT 직전 트리거가 세어보고 거부</b>한다. 앱을 우회해도 똑같이 막힌다.</p>
+
+<h3>밴</h3>
+<p><code>profiles.banned = true</code>면 <b>모든 쓰기가 차단</b>된다 — 글·댓글·DM·친구요청 전부.
+본인은 못 푼다(트리거가 막는다). 운영자가 대시보드에서만 켜고 끌 수 있다.</p>
+
+<h3>신고</h3>
+<p>글·댓글·사람을 신고하면 <code>reports</code>에 쌓인다. 같은 대상 중복 신고는 조용히 무시.
+<b>읽을 수 있는 사람은 아무도 없다</b> — 운영자가 Supabase 대시보드에서 직접 확인하는 구조다.
+스토어 심사 요건이기도 했다.</p>
+
+<h3>주제 승인제 — 조용한 안전장치</h3>
+<p>초기에는 클라이언트가 주제를 자동 생성했다. 지금은 <b>운영자가 미리 승인한 주제만</b> 게시된다.
+주제가 없는 날은 “오늘의 주제를 준비하고 있어요”가 뜨고 <b>사진 게시가 잠긴다.</b></p>
+<p>이게 중요한 이유: 부적절하거나 이상한 주제가 자동으로 뜰 가능성이 0이 되고, 필요하면
+주제를 안 넣는 것만으로 <b>서비스 전체의 게시를 멈출 수 있다.</b> 대신 <b>매주 <code>topics-weekly.sql</code>을 돌려야 한다</b> —
+잊으면 아무도 사진을 못 올린다. 운영상 가장 실수하기 쉬운 지점.</p>
+
+<h3>탈퇴 시 데이터 처리</h3>
+<pre><code>탈퇴 버튼
+  → ① 내 Storage 폴더의 파일을 먼저 전부 삭제
+       <span class="c">(계정을 지운 뒤엔 같은 토큰이어도 Storage가 거부한다 — 순서가 중요)</span>
+  → ② delete_own_account() RPC → auth.users 행 삭제
+  → ③ profiles·posts·comments·friendships·messages·reveals·reports
+       전부 외래키 CASCADE로 자동 삭제
+  → ④ 로그아웃</code></pre>
+<p>흔적이 남는 곳은 없다. 순서가 반대면 사진 파일이 고아로 남는다 — 실제로 겪고 고친 자리다.</p>
+</section>
+
+
+<section id="s13">
+<h2>화면이 그려지는 방식</h2>
+<p class="dek">React를 안 쓰는 앱이 어떻게 상태를 화면에 반영하나. 성능 사고가 여기서 났다.</p>
+
+<h3>기본 구조</h3>
+<pre><code>state (커다란 객체 하나)
+  → render()  : state를 읽어 HTML 문자열을 만든다
+    → patchPhone() : 화면을 <b>조각</b>으로 나눠 비교
+      → 조각의 HTML이 지난번과 같으면 <b>그 노드는 건드리지 않는다</b></code></pre>
+<p>조각은 주 화면·탭바·오버레이·배너·작업중 표시·토스트로 나뉜다.
+상태가 바뀌면 <code>update()</code>를 부르고, 그게 <code>render()</code>를 호출한다. 흐름은 항상 한 방향이다.</p>
+
+<h3>왜 이렇게 됐나 — 실제 사고 기록</h3>
+<div class="index-list">
+  <div class="item">
+    <div><h3>v47~v48</h3><div class="meta">버벅임 · 자판 떨림</div></div>
+    <p>원래 <code>render()</code>가 매번 <code>app.innerHTML</code>을 통째로 갈아엎었다. 안 바뀐 사진·동영상까지
+      전부 새로 만들어져 깜빡임·스크롤 튐·backdrop-filter 재계산이 일어났다.
+      계측 결과 자판 1회당 스타일·레이아웃 계산이 <b>46회 → 18회</b>로 줄었다.</p>
+  </div>
+  <div class="item">
+    <div><h3>같은 시기</h3><div class="meta">키보드 흔들림</div></div>
+    <p>재렌더가 아니라 <code>#app</code>/<code>.phone</code>의 <b>0.18초 높이 transition</b>이 범인이었다.
+      키보드 높이는 매 프레임 들어오는데 높이만 180ms 뒤처져 어긋난 것. transition을 지워 해결.</p>
+  </div>
+  <div class="item">
+    <div><h3>v50</h3><div class="meta">화면 전환 후 번쩍임</div></div>
+    <p>슬라이드가 끝나고 클래스를 떼는 순간 CSS의 <b>기본 <code>animation</code>이 새로 재생</b>됐다.
+      교훈: <b>클래스로 애니메이션을 갈아끼울 땐 기본값을 반드시 비워둘 것.</b></p>
+  </div>
+</div>
+
+<h4>지금도 지키는 규칙</h4>
+<ul>
+<li><b>타이핑 중에는 전체 재렌더를 하지 않는다</b> — 힌트·버튼만 부분 패치. 입력창을 교체하면 한글 조합이 끊긴다</li>
+<li>포커스·커서·스크롤 복원은 <b>노드가 실제로 교체됐을 때만</b>. 살아남은 요소에 다시 쓰면 오히려 스크롤이 멈춘다</li>
+<li>입력창 폰트는 <b>16px 미만 금지</b> — iOS가 자동으로 확대해버린다</li>
+<li><b>키보드·뷰포트 관련 코드는 추측으로 건드리지 않는다</b> — 진단 오버레이로 실측한 뒤에만</li>
+</ul>
+</section>
+
+
+<section id="s14">
+<h2>배포·운영 루틴</h2>
+<p class="dek">앱을 살아 있게 유지하는 데 실제로 하는 일.</p>
+
+<h3>배포 — 빌드가 없다</h3>
+<pre><code><span class="c"># 1. 원본 → 배포용 클론으로 복사 (test 폴더는 제외)</span>
+git clone https://github.com/kdh96980919-star/blur-app.git /tmp/blur-app
+rsync -a --exclude .git --exclude .DS_Store --exclude test \
+  ~/Desktop/anti/10-working/blur-service/ /tmp/blur-app/
+
+<span class="c"># 2. push (김이 직접) → 1~2분 후 라이브</span>
+cd /tmp/blur-app && git add -A && git commit -m "update" && git push</code></pre>
+
+<div class="card warn">
+<h3>배포는 세 갈래다 — 헷갈리면 알림이 끊긴다</h3>
+<div class="facts" style="margin-bottom:0">
+  <div class="row"><p class="k">정적 파일</p><p class="v">rsync → <code>/tmp/blur-app</code> → push (HTML·CSS·JS)</p></div>
+  <div class="row"><p class="k">DB 변경</p><p class="v">Supabase 대시보드 SQL Editor에 마이그레이션 붙여넣고 Run</p></div>
+  <div class="row"><p class="k">Edge Function</p><p class="v"><b>원본 폴더에서</b> <code>supabase functions deploy notify</code></p></div>
+</div>
+</div>
+
+<h3>Service Worker 버전 — 이걸 안 올리면 배포가 안 보인다</h3>
+<p><code>sw.js</code> 맨 위의 <code>CACHE_NAME = "blur-service-v51"</code>. 파일을 고쳤으면 이 숫자를 올려야
+사용자 폰의 낡은 캐시가 버려진다. 앱 파일은 네트워크 우선이라 대개 자동으로 최신을 받지만,
+이 버전이 배포의 <b>공식 이름표</b> 역할을 한다.</p>
+
+<h3>주간·일간 루틴</h3>
+<div class="facts">
+  <div class="row"><p class="k">매주</p><p class="v"><code>supabase/topics-weekly.sql</code>의 날짜·주제를 검토하고 SQL Editor에서 실행.
+    <b>빠뜨리면 그날 아무도 사진을 못 올린다</b></p></div>
+  <div class="row"><p class="k">매일(선택)</p><p class="v"><code>./stats.sh</code> — 어제 통계 한 줄.
+    누적 사용자·활동 사용자·신규가입·사진·댓글·블러열람</p></div>
+  <div class="row"><p class="k">코드 수정 후</p><p class="v"><code>test/run.sh</code> 31개 검사 + <code>test/shots.mjs</code> 스크린샷</p></div>
+</div>
+
+<h4>허브 날짜 — 하루가 바뀌는 시각</h4>
+<p>blur의 하루는 자정이 아니라 <b>한국시간 오전 6시</b>에 바뀐다. 새벽 3시에 올린 사진은 전날 것이다.
+앱과 DB가 이 규칙을 <b>따로 구현</b>하고 있어서(<code>hubDateToday()</code>와 <code>hub_today()</code>) 한쪽만 고치면 어긋난다 —
+실제로 예전에 앱은 6시, 정책은 UTC 자정이라 매일 오전 6~9시에 게시가 거부되던 버그가 있었다(migration-07에서 수정).</p>
+
+<h4>통계의 한계 — 알고 쓸 것</h4>
+<p><code>stats.sh</code>의 “활동 사용자”는 <b>글·댓글·블러열람 중 하나라도 한 사람</b>이다.
+blur는 로그인·세션 기록을 저장하지 않으므로 <b>앱만 열고 아무것도 안 한 사람은 안 잡힌다.</b>
+순수 접속까지 세려면 <code>profiles.last_seen</code> 같은 컬럼을 새로 만들어야 한다.</p>
+</section>
+
+
+<section id="s15">
+<h2>한계와 다음</h2>
+<p class="dek">지금 구조가 어디까지 버티나. 물어보면 이렇게 답하면 된다.</p>
+
+<div class="index-list">
+  <div class="item">
+    <div><h3>사진이 공개 URL</h3><div class="meta">보안</div></div>
+    <p>URL을 아는 사람은 로그인 없이 이미지를 본다. 무작위 파일명이라 실질 위험은 낮지만,
+      민감한 사진을 다루려면 비공개 버킷 + 서명 URL로 전환해야 한다.</p>
+  </div>
+  <div class="item">
+    <div><h3>매번 전체를 다시 받는다</h3><div class="meta">확장성</div></div>
+    <p>모든 프로필·모든 게시물을 통째로 받아 앱에서 거른다. 수백 명까지는 문제없지만
+      그 이상에서는 페이지네이션·증분 갱신이 필요하다. <b>먼저 깨질 자리는 여기다.</b></p>
+  </div>
+  <div class="item">
+    <div><h3>Storage 1GB</h3><div class="meta">비용</div></div>
+    <p>무료 티어에서 가장 먼저 차는 곳. 사진만 써도 100명 기준 3~4개월.
+      다음 단계는 유료 전환 또는 오래된 사진의 자동 정리 정책.</p>
+  </div>
+  <div class="item">
+    <div><h3>운영자 수동 작업</h3><div class="meta">운영</div></div>
+    <p>주간 주제 입력, 신고 확인, 밴 처리가 전부 손이다. 사용자가 늘면 주제 자동화(승인 큐)와
+      신고 대시보드가 필요해진다.</p>
+  </div>
+  <div class="item">
+    <div><h3>연락처 찾기가 안드로이드만</h3><div class="meta">플랫폼</div></div>
+    <p>Contact Picker API가 안드로이드 크롬 전용. iOS는 내 번호 직접 입력만 가능.
+      완전 동작은 네이티브 앱(Expo) 재구현 뒤에나.</p>
+  </div>
+  <div class="item">
+    <div><h3>계정에 묶인 도메인</h3><div class="meta">지뢰</div></div>
+    <p>GitHub Pages URL이 계정명에 묶여 있어 계정을 옮기면 베타 사용자 링크가 깨지고
+      OAuth 리다이렉트 설정도 같이 죽는다. 재개한다면 <b>커스텀 도메인부터</b>.</p>
+  </div>
+</div>
+</section>
+
+
+<section id="s16">
+<h2>직접 확인해보기</h2>
+<p class="dek">읽는 것보다 한 번 두드려보는 게 낫다. 전부 안전한(읽기 전용) 명령이다.</p>
+
+<h4>지금 몇 명이 쓰고 있나</h4>
+<pre><code>cd ~/Desktop/anti/10-working/blur-service
+./stats.sh              <span class="c"># 어제</span>
+./stats.sh 2026-07-29   <span class="c"># 특정 날짜</span></code></pre>
+
+<h4>알림이 실제로 나갔는지 (SQL Editor)</h4>
+<pre><code>select id, status_code, content
+  from net._http_response
+ order by id desc limit 5;
+<span class="c">-- 200 = 정상 · skipped:no-relation = 친구 아님 · 401/500 = 비밀 불일치</span>
+<span class="c">-- 해석표는 docs/push-setup.md</span></code></pre>
+
+<h4>트리거가 제대로 붙어 있나</h4>
+<pre><code>select tgname, tgrelid::regclass from pg_trigger
+ where tgname in ('notify_on_comment','notify_on_message','notify_on_friendship');</code></pre>
+
+<h4>사진이 스토리지를 얼마나 쓰고 있나</h4>
+<pre><code>Supabase 대시보드 → Storage → photos 버킷 → 우상단 사용량
+또는  Settings → Usage 에서 Database·Storage·Egress 를 한 화면에서</code></pre>
+
+<h4>내 앱이 서버에 실제로 무엇을 묻는지 보기</h4>
+<pre><code>브라우저에서 앱 열기 → 개발자도구 → Network 탭 → Fetch/XHR 필터
+<span class="c"># profiles, posts, friendships … 요청이 한꺼번에 나가는 게 보인다.</span>
+<span class="c"># 응답에 남의 비공개 데이터가 없는 것 = RLS가 일하고 있다는 증거</span></code></pre>
+
+<h4>코드에서 답을 찾는 지도</h4>
+<div class="facts">
+  <div class="row"><p class="k">서버 호출</p><p class="v"><code>backend.js</code> — 서버로 나가는 모든 요청이 여기 한 파일에 있다. 여기부터 읽으면 된다</p></div>
+  <div class="row"><p class="k">데이터 규칙</p><p class="v"><code>supabase/schema.sql</code> + <code>migration-*.sql</code> — 번호순으로 읽으면 서비스가 자란 역사가 그대로 보인다</p></div>
+  <div class="row"><p class="k">화면·상태</p><p class="v"><code>app.js</code> — <code>defaultState()</code>로 상태 전체를 먼저 훑고, 필요한 화면 함수(<code>homeView</code> 등)를 찾아간다</p></div>
+  <div class="row"><p class="k">지금 상황</p><p class="v"><code>PROGRESS.md</code> — “뭘 하다 말았는지”. 세션 인수인계용</p></div>
+  <div class="row"><p class="k">셋업 절차</p><p class="v"><code>docs/</code> — push-setup · oauth-setup · supabase-setup · moderation-plan</p></div>
+</div>
+</section>
+
+<footer>blur internals · 2026-07-30 · SW v51 · migration-14</footer>
+
+</main>
+</body>
+</html>
