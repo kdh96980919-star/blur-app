@@ -2121,14 +2121,14 @@ function viewerView() {
   const commentsOpen = state.overlays.commentsFor === post.id;
   return `<section class="viewer${commentsOpen ? " with-comments" : ""}" data-action="close-viewer">
     <div class="viewer-zoom">
-      <div class="viewer-date">${escapeHtml(dateLabel)}</div>
-      <div class="viewer-photo">
-        ${mediaFrame(post, "large", { forceReveal: true, noReveal: true })}
-        ${!mine ? `<button class="viewer-report" aria-label="게시물 신고" title="게시물 신고" data-action="open-report" data-type="post" data-target="${post.id}">${icon("flag", 13)}</button>` : ""}
+      <div class="viewer-head">
+        <div class="viewer-date">${escapeHtml(dateLabel)}</div>
+        ${!mine ? `<button class="viewer-report" aria-label="게시물 신고" title="게시물 신고" data-action="open-report" data-type="post" data-target="${post.id}">${icon("flag", 15)}</button>` : ""}
       </div>
+      ${mediaFrame(post, "large", { forceReveal: true, noReveal: true })}
       ${hubTopic ? `<div class="viewer-topic"><div class="topic-callout">${escapeHtml(hubTopic)}</div></div>` : ""}
       ${post.caption ? `<div class="viewer-caption">${escapeHtml(post.caption)}</div>` : ""}
-      <button class="btn secondary viewer-comments" aria-label="댓글" data-action="open-comments" data-post="${post.id}">${icon("message", 15)}${count ? `<b class="viewer-cmt-count">${count}</b>` : ""}</button>
+      <button class="viewer-comments" aria-label="댓글" data-action="open-comments" data-post="${post.id}">${icon("message", 18)}${count ? `<b class="viewer-cmt-count">${count}</b>` : ""}</button>
       ${mine && !post.archived ? `<button class="btn secondary viewer-archive" data-action="archive-post" data-post="${post.id}">${icon("trash", 15)}<span style="margin-left:7px">프로필에서 삭제 (보관으로 이동)</span></button>` : ""}
     </div>
   </section>`;

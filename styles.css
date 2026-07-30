@@ -2333,37 +2333,30 @@ input.bg-swatch {
   }
 }
 
-/* 날짜는 사진 위에 — 사진에 붙여 놓아야 캡션처럼 읽힌다 */
-.viewer-date {
-  font-size: 11px;
-  color: var(--muted);
-  text-align: center;
+/* 사진 위 한 줄 — 날짜는 가운데, 신고는 오른쪽 끝(사진과 겹치지 않는다).
+   날짜를 가운데에 고정하려고 신고는 흐름에서 빼 절대 배치한다. */
+.viewer-head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   margin-bottom: -10px;
 }
 
-/* 사진 + 우측 상단 신고 버튼 */
-.viewer-photo {
-  position: relative;
-  display: flex;
-  flex-direction: column;
+.viewer-date {
+  font-size: 13.5px;
+  color: var(--muted);
 }
 
 .viewer-report {
   position: absolute;
-  top: 10px;
-  right: 10px;
+  right: 0;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 999px;
+  padding: 4px;
   cursor: pointer;
   color: var(--danger);
-  background: rgba(255, 255, 255, .72);
-  backdrop-filter: blur(12px) saturate(160%);
-  -webkit-backdrop-filter: blur(12px) saturate(160%);
-  box-shadow: var(--lift-sm);
+  background: transparent;
 }
 
 /* 허브 주제 — 오늘 페이지와 같은 콜아웃 상자로 글 남기기와 구분 */
@@ -2377,7 +2370,6 @@ input.bg-swatch {
 }
 
 .viewer-cmt-count {
-  margin-left: 6px;
   font-weight: 600;
 }
 
@@ -2392,7 +2384,18 @@ input.bg-swatch {
   word-break: break-word;
 }
 
-.viewer-comments,
+/* 댓글은 기호와 숫자만 — 테두리 있는 상자는 허브 주제(콜아웃)에만 둔다 */
+.viewer-comments {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 auto;
+  padding: 6px;
+  color: var(--ink);
+  background: transparent;
+  cursor: pointer;
+}
+
 .viewer-archive {
   margin: 0 auto;
   min-height: 42px;
@@ -2422,7 +2425,7 @@ input.bg-swatch {
   align-self: center;
 }
 
-.viewer.with-comments .viewer-date,
+.viewer.with-comments .viewer-head,
 .viewer.with-comments .viewer-topic,
 .viewer.with-comments .viewer-caption,
 .viewer.with-comments .viewer-comments,
