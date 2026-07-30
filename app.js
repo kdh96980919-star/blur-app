@@ -1207,7 +1207,10 @@ function homeView() {
           <div class="post-card">
             ${mediaFrame(post, "large", { person })}
             <div class="post-meta">
-              <div class="post-name">${escapeHtml(person?.name || "알 수 없음")} <span class="post-time">${escapeHtml(post.time)}</span></div>
+              <div class="post-name">${mine
+                ? escapeHtml(person?.name || "알 수 없음")
+                // 남의 이름은 탭하면 그 사람 프로필로 (전체 탭 카드와 같은 동작)
+                : `<button class="name-link" data-action="open-person" data-user="${post.authorId}">${escapeHtml(person?.name || "알 수 없음")}</button>`} <span class="post-time">${escapeHtml(post.time)}</span></div>
               <div class="meta-actions">
                 <button class="cmt-count" aria-label="댓글" data-action="open-comments" data-post="${post.id}">${icon("message", 15)}${count ? `<b>${count}</b>` : ""}</button>
                 ${mine ? `<button class="msg-btn" aria-label="게시물 관리" data-action="post-menu" data-post="${post.id}">${icon("pencil", 14)}</button>` : ""}
@@ -2118,15 +2121,15 @@ function viewerView() {
   const commentsOpen = state.overlays.commentsFor === post.id;
   return `<section class="viewer${commentsOpen ? " with-comments" : ""}" data-action="close-viewer">
     <div class="viewer-zoom">
-      ${mediaFrame(post, "large", { forceReveal: true, noReveal: true })}
-      <div class="viewer-meta" style="text-align:center">
-        <div class="viewer-date">${escapeHtml(dateLabel)} 허브</div>
-        <div class="viewer-topic">${escapeHtml(hubTopic)}</div>
+      <div class="viewer-date">${escapeHtml(dateLabel)}</div>
+      <div class="viewer-photo">
+        ${mediaFrame(post, "large", { forceReveal: true, noReveal: true })}
+        ${!mine ? `<button class="viewer-report" aria-label="게시물 신고" title="게시물 신고" data-action="open-report" data-type="post" data-target="${post.id}">${icon("flag", 13)}</button>` : ""}
       </div>
+      ${hubTopic ? `<div class="viewer-topic"><div class="topic-callout">${escapeHtml(hubTopic)}</div></div>` : ""}
       ${post.caption ? `<div class="viewer-caption">${escapeHtml(post.caption)}</div>` : ""}
-      <button class="btn secondary viewer-comments" data-action="open-comments" data-post="${post.id}">${icon("message", 15)}<span style="margin-left:7px">댓글${count ? ` ${count}` : ""}</span></button>
+      <button class="btn secondary viewer-comments" aria-label="댓글" data-action="open-comments" data-post="${post.id}">${icon("message", 15)}${count ? `<b class="viewer-cmt-count">${count}</b>` : ""}</button>
       ${mine && !post.archived ? `<button class="btn secondary viewer-archive" data-action="archive-post" data-post="${post.id}">${icon("trash", 15)}<span style="margin-left:7px">프로필에서 삭제 (보관으로 이동)</span></button>` : ""}
-      ${!mine ? `<button class="text-link viewer-report" style="color:var(--danger)" data-action="open-report" data-type="post" data-target="${post.id}">${icon("flag", 13)}<span style="margin-left:6px">게시물 신고</span></button>` : ""}
     </div>
   </section>`;
 }

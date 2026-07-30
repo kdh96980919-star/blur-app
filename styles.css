@@ -961,6 +961,14 @@ button:focus {
   font-size: 11px;
 }
 
+/* 이름을 탭하면 프로필로 — 글씨는 주변과 똑같이 두고 버튼 기본 모양만 지운다 */
+.name-link {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  cursor: pointer;
+}
+
 .post-time {
   color: var(--faint);
   font-size: 10px;
@@ -2325,17 +2333,52 @@ input.bg-swatch {
   }
 }
 
+/* 날짜는 사진 위에 — 사진에 붙여 놓아야 캡션처럼 읽힌다 */
 .viewer-date {
   font-size: 11px;
   color: var(--muted);
+  text-align: center;
+  margin-bottom: -10px;
 }
 
+/* 사진 + 우측 상단 신고 버튼 */
+.viewer-photo {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.viewer-report {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  cursor: pointer;
+  color: var(--danger);
+  background: rgba(255, 255, 255, .72);
+  backdrop-filter: blur(12px) saturate(160%);
+  -webkit-backdrop-filter: blur(12px) saturate(160%);
+  box-shadow: var(--lift-sm);
+}
+
+/* 허브 주제 — 오늘 페이지와 같은 콜아웃 상자로 글 남기기와 구분 */
 .viewer-topic {
+  display: flex;
+  justify-content: center;
   font-family: var(--font-display);
   font-size: 18px;
   font-weight: 500;
-  margin-top: 5px;
   color: var(--ink);
+}
+
+.viewer-cmt-count {
+  margin-left: 6px;
+  font-weight: 600;
 }
 
 /* 지난 허브 사진에 남긴 글(글 남기기) — 허브와 댓글 버튼 사이에 놓인다 */
@@ -2353,6 +2396,7 @@ input.bg-swatch {
 .viewer-archive {
   margin: 0 auto;
   min-height: 42px;
+  padding: 0 16px;
   font-size: 12.5px;
   background: var(--glass-strong);
   color: var(--ink);
@@ -2378,7 +2422,8 @@ input.bg-swatch {
   align-self: center;
 }
 
-.viewer.with-comments .viewer-meta,
+.viewer.with-comments .viewer-date,
+.viewer.with-comments .viewer-topic,
 .viewer.with-comments .viewer-caption,
 .viewer.with-comments .viewer-comments,
 .viewer.with-comments .viewer-archive,
