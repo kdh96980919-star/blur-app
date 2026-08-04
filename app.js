@@ -1197,7 +1197,7 @@ function homeView() {
       ${bellButton()}
     </div>
     <div class="home-body">
-    <div class="h-big"><div class="topic-callout">${topic ? escapeHtml(topic) : `<span style="color:var(--muted)">허브를 준비하고 있어요</span>`}</div></div>
+    <div class="h-big"><div class="topic-callout">${topic ? escapeHtml(topic) : `<span style="color:var(--muted)">출시 준비 중..</span>`}</div></div>
     ${posts.length ? `<div class="home-carousel" data-carousel>
       ${posts.map((post) => {
         const person = personById(post.authorId);
@@ -1263,7 +1263,7 @@ function allView() {
       ${bellButton()}
     </div>
     <div class="page-title">전체</div>
-    <div class="topic-sub">${topic ? escapeHtml(topic) : "오늘의 허브를 준비하고 있어요"}</div>
+    <div class="topic-sub">${topic ? escapeHtml(topic) : "출시 준비 중.."}</div>
     <div class="screen-scroll">
       <div class="masonry">
         <div class="masonry-col">${colA.map(card).join("")}</div>
@@ -2564,11 +2564,11 @@ function handleAction(action, el) {
     case "tab":
       return update((s) => { s.tab = el.dataset.tab; });
     case "open-upload":
-      if (!topic) return toast("오늘의 허브가 아직 공개되지 않았어요");
+      if (!topic) return toast("지금은 출시 준비 중이에요");
       return update((s) => { s.upload = { ...blankUpload(), open: true }; });
     case "quick-upload":
       // 홈 상단 + 버튼 — 바로 앨범에서 사진 선택, 고르면 편집 단계로 진입
-      if (!topic) return toast("오늘의 허브가 아직 공개되지 않았어요");
+      if (!topic) return toast("지금은 출시 준비 중이에요");
       state.upload = blankUpload();
       return albumInput.click();
     case "bg-reset":
