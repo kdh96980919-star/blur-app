@@ -65,7 +65,7 @@ App Store 심사(App Review Guidelines)에서 blur 같은 **UGC 사진 SNS + 소
 - [x] 개인정보처리방침 (privacy.html) — 2026-07-31 실제 수집과 대조해 수정 완료(전화번호 해시·푸시 구독 추가, 사진 파일 공개 범위 정정)
 - [x] 이용약관 (terms.html) — CSAE·괴롭힘·자해조장·혐오 명시 + 무관용·24h 조치 명문화
 - [x] **모더레이션 계획** 문서화 — `docs/moderation-plan.md`
-- [x] 문의 연락처 명시 — 202501630@inu.ac.kr (약관·support.html에 있음)
+- [x] 문의 연락처 명시 — blurfrom@gmail.com (약관·support.html에 있음)
 
 ### 0-6. App Privacy (데이터 수집 신고) 설문 — ✅ **답안 확정** (`docs/app-privacy.md`)
 코드에서 실측해 신고 항목 7개를 확정했고, `privacy.html`과의 불일치 3개를 찾아 정책 쪽을 실제에 맞게 고쳤다. 설문 입력은 App Store Connect 계정이 생긴 뒤 그 문서를 그대로 옮기면 된다.

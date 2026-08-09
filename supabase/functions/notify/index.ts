@@ -20,7 +20,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const VAPID_PUBLIC = Deno.env.get("VAPID_PUBLIC_KEY")!;
 const VAPID_PRIVATE = Deno.env.get("VAPID_PRIVATE_KEY")!;
-const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT") || "mailto:202501630@inu.ac.kr";
+const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT") || "mailto:blurfrom@gmail.com";
 // DB 트리거만 아는 공유 비밀 — Vault의 notify_service_key와 같은 값이어야 한다
 // (supabase secrets set NOTIFY_SECRET=... --project-ref nzrfzxpqvhdkmogpsscz)
 const NOTIFY_SECRET = Deno.env.get("NOTIFY_SECRET") || "";

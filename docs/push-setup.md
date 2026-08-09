@@ -61,7 +61,7 @@ supabase link --project-ref nzrfzxpqvhdkmogpsscz
 supabase secrets set \
   VAPID_PUBLIC_KEY="BKRWzZhZd5lovi0RPu7dgWDt_d8HAkMu0q_maqEg9IEWVxAv8VdFQThJzxmEJ_AgONmjGF0FcPynPX9IHNOTsmk" \
   VAPID_PRIVATE_KEY="<여기에 개인 키>" \
-  VAPID_SUBJECT="mailto:202501630@inu.ac.kr"
+  VAPID_SUBJECT="mailto:blurfrom@gmail.com"
 
 # 함수 배포
 supabase functions deploy notify
