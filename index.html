@@ -2,24 +2,206 @@
 <html lang="ko">
   <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
-    <meta name="theme-color" content="#fdfeff">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-title" content="blur">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>blur</title>
-    <link rel="manifest" href="./manifest.webmanifest">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#f7fbfb">
+    <meta name="description" content="blur 웹 베타 종료 안내와 고객지원·개인정보 처리방침 링크">
+    <title>blur 웹 베타 종료 안내</title>
     <link rel="icon" href="./assets/favicon-32.png" type="image/png" sizes="32x32">
-    <link rel="icon" href="./assets/icon-192.png" type="image/png" sizes="192x192">
-    <link rel="apple-touch-icon" href="./assets/icon-180.png">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
-    <link rel="stylesheet" href="./styles.css">
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #312d38;
+        --muted: #746e7e;
+        --sky: #72c8f2;
+        --mint: #76e7ad;
+        --paper: #f7fbfb;
+        --glass: rgba(255, 255, 255, .72);
+        --line: rgba(49, 45, 56, .12);
+      }
+      * { box-sizing: border-box; }
+      html { min-height: 100%; background: var(--paper); }
+      body {
+        min-height: 100vh;
+        min-height: 100svh;
+        margin: 0;
+        color: var(--ink);
+        font-family: "Pretendard Variable", Pretendard, "SF Pro Text", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", system-ui, sans-serif;
+        background:
+          radial-gradient(75% 46% at 4% 0%, rgba(114, 200, 242, .54), transparent 68%),
+          radial-gradient(72% 48% at 100% 100%, rgba(118, 231, 173, .48), transparent 68%),
+          var(--paper);
+      }
+      main {
+        min-height: 100vh;
+        min-height: 100svh;
+        display: grid;
+        place-items: center;
+        padding: max(28px, env(safe-area-inset-top)) 22px max(28px, env(safe-area-inset-bottom));
+      }
+      article {
+        width: min(100%, 520px);
+        padding: clamp(30px, 8vw, 52px);
+        border: 1px solid rgba(255, 255, 255, .86);
+        border-radius: 32px;
+        background: var(--glass);
+        box-shadow: 0 24px 80px rgba(75, 107, 116, .14);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+      }
+      .mark {
+        position: relative;
+        width: 82px;
+        height: 82px;
+        margin-bottom: 34px;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, .9);
+        border-radius: 50%;
+        background:
+          radial-gradient(circle at 34% 32%, #fff 0 6%, transparent 7%),
+          linear-gradient(140deg, var(--sky), #d9d5ec 48%, var(--mint));
+        box-shadow: 0 12px 28px rgba(83, 148, 158, .2);
+      }
+      .mark::before {
+        content: "";
+        position: absolute;
+        inset: 17px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, .7);
+        box-shadow: 0 0 0 18px rgba(255, 255, 255, .12);
+        backdrop-filter: blur(1px);
+        -webkit-backdrop-filter: blur(1px);
+        animation: resolve 900ms cubic-bezier(.2, .8, .2, 1) both;
+      }
+      .status {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0 0 14px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 650;
+        letter-spacing: .08em;
+      }
+      .status::before {
+        content: "";
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--mint);
+        box-shadow: 0 0 0 4px rgba(118, 231, 173, .18);
+      }
+      h1 {
+        margin: 0;
+        font-family: ui-rounded, "SF Pro Rounded", "Pretendard Variable", system-ui, sans-serif;
+        font-size: clamp(38px, 10vw, 58px);
+        font-weight: 720;
+        letter-spacing: -.055em;
+        line-height: 1.03;
+      }
+      .copy {
+        max-width: 390px;
+        margin: 24px 0 0;
+        color: var(--muted);
+        font-size: 15px;
+        line-height: 1.75;
+        word-break: keep-all;
+      }
+      nav {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-top: 32px;
+      }
+      .button {
+        display: inline-flex;
+        min-height: 48px;
+        align-items: center;
+        justify-content: center;
+        padding: 12px 16px;
+        border: 1px solid transparent;
+        border-radius: 15px;
+        color: var(--ink);
+        font-size: 14px;
+        font-weight: 650;
+        text-decoration: none;
+        transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+      }
+      .button.primary {
+        background: var(--ink);
+        color: white;
+        box-shadow: 0 10px 22px rgba(49, 45, 56, .16);
+      }
+      .button.secondary {
+        border-color: var(--line);
+        background: rgba(255, 255, 255, .58);
+      }
+      .button:hover { transform: translateY(-1px); }
+      .button:focus-visible {
+        outline: 3px solid rgba(114, 200, 242, .54);
+        outline-offset: 3px;
+      }
+      footer {
+        margin-top: 24px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.6;
+      }
+      footer a { color: inherit; text-underline-offset: 3px; }
+      @keyframes resolve {
+        from { opacity: .1; transform: scale(.42); filter: blur(8px); }
+        to { opacity: 1; transform: scale(1); filter: blur(0); }
+      }
+      @media (max-width: 420px) {
+        article { border-radius: 26px; }
+        nav { grid-template-columns: 1fr; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { animation: none !important; transition: none !important; }
+      }
+    </style>
   </head>
   <body>
-    <main id="app" aria-live="polite"></main>
-    <input id="photo-input" hidden type="file" accept="image/*" capture="environment">
-    <input id="album-input" hidden type="file" accept="image/*,video/*">
-    <input id="avatar-input" hidden type="file" accept="image/*">
-    <script type="module" src="./app.js"></script>
+    <main>
+      <article aria-labelledby="retirement-title">
+        <div class="mark" aria-hidden="true"></div>
+        <p class="status">WEB BETA COMPLETE</p>
+        <h1 id="retirement-title">웹에서의<br>blur를 마쳤어요.</h1>
+        <p class="copy">웹 베타는 종료했습니다. 기존 계정과 데이터에 관한 요청은 고객지원으로 보내 주세요. 지금은 iPhone 앱 출시를 준비하고 있습니다.</p>
+        <nav aria-label="도움말 링크">
+          <a class="button primary" href="./legal/support.html">고객지원</a>
+          <a class="button secondary" href="./legal/privacy.html">개인정보 처리방침</a>
+        </nav>
+        <footer>
+          계정 삭제 요청 · <a href="mailto:blurfrom@gmail.com">blurfrom@gmail.com</a>
+        </footer>
+      </article>
+    </main>
+    <script>
+      (async () => {
+        const authKey = "sb-nzrfzxpqvhdkmogpsscz-auth-token";
+        const blurKeys = ["blur-service-state-v2", "blur-notif-seen", "blur-bg", "blur-kb-height"];
+        try {
+          for (const key of blurKeys) localStorage.removeItem(key);
+          for (let index = localStorage.length - 1; index >= 0; index -= 1) {
+            const key = localStorage.key(index);
+            if (key === authKey || key?.startsWith(`${authKey}.`)) localStorage.removeItem(key);
+          }
+        } catch {}
+
+        try {
+          if ("serviceWorker" in navigator) {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            const scope = new URL("./", location.href).href;
+            await Promise.all(registrations.filter((registration) => registration.scope === scope).map(async (registration) => {
+              try { await (await registration.pushManager?.getSubscription())?.unsubscribe(); } catch {}
+              return registration.unregister();
+            }));
+          }
+          if ("caches" in window) {
+            await Promise.all((await caches.keys()).filter((key) => key.startsWith("blur-service-")).map((key) => caches.delete(key)));
+          }
+        } catch {}
+      })();
+    </script>
   </body>
 </html>
