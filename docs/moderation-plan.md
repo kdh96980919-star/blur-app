@@ -52,7 +52,7 @@
 **긴급(CSAE 등) 발견 시**: 콘텐츠 즉시 삭제 + 계정 밴 + 필요 시 관계기관 신고.
 
 ## 7. 연락처
-- 신고·문의: **blurfrom@gmail.com** (약관·개인정보처리방침에 명시)
+- 신고·문의: **startup.anti@gmail.com** (약관·개인정보처리방침에 명시)
 
 ---
 
@@ -66,7 +66,7 @@ blur는 지인 기반 사진 공유 앱으로, 사용자 생성 콘텐츠 안전
 · 사용자 차단 기능을 제공합니다.
 · 운영자가 신고를 검토하고 위반 콘텐츠 삭제 및 계정 정지를 24시간 이내에 조치합니다.
 · 스팸·도배는 서버단 속도 제한으로 차단합니다.
-· 문의: blurfrom@gmail.com
+· 문의: startup.anti@gmail.com
 심사용 로그인 계정: (별도 제공 — App Review 정보란 참고)
 ```
 
@@ -78,7 +78,7 @@ blur is a friends-only photo sharing app with user-generated content safeguards:
 · Users can block other users.
 · The operator reviews reports and removes violating content / suspends accounts within 24 hours.
 · Spam is prevented by server-side rate limits.
-· Contact: blurfrom@gmail.com
+· Contact: startup.anti@gmail.com
 Demo account for review: see App Review Information (login is OAuth-only; test credentials provided there).
 ```
 
