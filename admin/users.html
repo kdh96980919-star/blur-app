@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://api.fontshare.com; font-src https://cdn.jsdelivr.net https://cdn.fontshare.com; connect-src https://nzrfzxpqvhdkmogpsscz.supabase.co; base-uri 'none'; form-action 'none'; object-src 'none'">
+<title>blur 이용자 대시보드</title>
+<link rel="preconnect" href="https://api.fontshare.com" crossorigin>
+<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600,700&display=swap">
+<style>
+@font-face{font-family:'SUIT Variable';font-weight:100 900;font-display:swap;
+  src:url('https://cdn.jsdelivr.net/gh/sun-typeface/SUIT@2/fonts/variable/woff2/SUIT-Variable.woff2') format('woff2-variations')}
+:root{
+  color-scheme:light;
+  --bg:#FAFAF7; --surface:#FFFFFF; --text:#101014; --text-muted:#71717A;
+  --line:#E6E4DD; --peri:#97A4E2; --peri-deep:#5E6FCE; --peach:#EFC5A8; --peach-deep:#B4713F;
+  --card:#F3F2ED; --pill:#E4E2F0;
+  --text-grad:linear-gradient(135deg,#6474D6 0%,#9A8BC4 55%,#C98A5E 100%);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);
+  font-family:"PP Neue Montreal","Switzer","SUIT Variable","Apple SD Gothic Neo","Noto Sans KR",sans-serif;
+  font-size:16px;line-height:1.7;letter-spacing:-0.01em;word-break:keep-all;
+  -webkit-font-smoothing:antialiased}
+.page{max-width:1080px;margin:0 auto;padding:72px 24px 96px;counter-reset:sec}
+.page section{margin:0 0 72px;counter-increment:sec}
+.page section>h2{font-size:1.55rem;font-weight:600;letter-spacing:-0.02em;margin:0 0 20px}
+.page section>h2::before{content:counter(sec,decimal-leading-zero);display:block;
+  font-size:0.76rem;font-weight:500;letter-spacing:0.14em;margin-bottom:6px;color:var(--peri-deep)}
+.en{font-size:0.74rem;letter-spacing:0.26em;text-transform:uppercase;color:var(--peri-deep);
+  font-weight:500;margin:0 0 8px}
+h1{font-size:2.6rem;font-weight:600;letter-spacing:-0.03em;text-transform:uppercase;margin:0 0 8px;
+  background:var(--text-grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{color:var(--text-muted);font-size:0.95rem;margin:0 0 0}
+header{margin-bottom:64px;border-bottom:1px solid var(--line);padding-bottom:32px}
+
+/* 01 데이터 투입 */
+.card{background:var(--card);border-radius:20px;padding:28px}
+.card p{margin:0 0 12px;font-size:0.95rem;color:var(--text-muted)}
+.steps{margin:0 0 20px;padding-left:20px;font-size:0.95rem;color:var(--text-muted)}
+.steps li{margin-bottom:6px}
+.steps code{background:var(--surface);border:1px solid var(--pill);border-radius:6px;
+  padding:1px 6px;font-size:0.85em}
+pre.sql{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;
+  margin:0 0 16px;overflow-x:auto;font-size:0.78rem;line-height:1.6;letter-spacing:0;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#33333a;max-height:260px}
+textarea{width:100%;min-height:120px;border:1px solid var(--line);border-radius:12px;padding:14px;
+  background:var(--surface);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.8rem;
+  color:var(--text);resize:vertical}
+textarea:focus{outline:none;border-color:var(--peri)}
+.row{display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap}
+button{font:inherit;font-size:0.85rem;font-weight:600;letter-spacing:-0.01em;cursor:pointer;
+  border-radius:999px;padding:9px 20px;border:1px solid var(--pill);background:var(--surface);
+  color:var(--text);transition:transform .22s ease,background .22s ease,border-color .22s ease}
+button:hover{transform:translateY(-1px);border-color:var(--peri)}
+button.primary{border:none;color:#16171D;background:linear-gradient(135deg,#A9AFE6,#C6C9E9 55%,#EFCBA9)}
+button.primary:hover{transform:scale(1.04)}
+.note{font-size:0.8rem;color:var(--text-muted)}
+.err{color:var(--peach-deep);font-size:0.85rem;margin-top:10px;min-height:1.2em}
+
+/* 02 요약 */
+.stats{display:grid;grid-template-columns:repeat(7,1fr);border-top:1px solid var(--line)}
+.stat{padding:20px 16px 20px 0;border-bottom:1px solid var(--line)}
+.stat .k{font-size:0.76rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--text-muted);
+  display:block;margin-bottom:2px}
+.stat .v{display:block;font-size:1.9rem;font-weight:600;letter-spacing:-0.03em;color:var(--peri-deep);
+  line-height:1.2;font-variant-numeric:tabular-nums}
+.stat .n{display:block;font-size:0.78rem;color:var(--text-muted);line-height:1.4}
+
+/* 03 추이 */
+.chart-head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:14px}
+.seg{display:flex;gap:6px}
+.seg button{padding:5px 14px;font-size:0.78rem;font-weight:500}
+.seg button[aria-pressed="true"]{background:var(--card);border-color:var(--peri);color:var(--peri-deep)}
+svg{display:block;width:100%;height:auto;overflow:visible}
+.legend{font-size:0.78rem;color:var(--text-muted);display:flex;gap:18px;margin-top:10px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;
+  vertical-align:middle}
+
+/* 04 표 */
+.filters{display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+input[type=search],select{font:inherit;font-size:0.85rem;padding:8px 14px;border-radius:999px;
+  border:1px solid var(--line);background:var(--surface);color:var(--text)}
+input[type=search]{min-width:240px}
+input[type=search]:focus,select:focus{outline:none;border-color:var(--peri)}
+table{width:100%;border-collapse:collapse;font-size:0.88rem}
+th{text-align:left;font-size:0.72rem;font-weight:500;letter-spacing:0.12em;text-transform:uppercase;
+  color:var(--text-muted);padding:0 12px 10px 0;border-bottom:1px solid var(--line);
+  cursor:pointer;white-space:nowrap;user-select:none;transition:color .22s ease}
+th:hover{color:var(--peri-deep)}
+th[data-dir]::after{content:'↓';margin-left:5px;color:var(--peri-deep)}
+th[data-dir="asc"]::after{content:'↑'}
+td{padding:11px 12px 11px 0;border-bottom:1px solid var(--line);vertical-align:top}
+tbody tr{transition:background .22s ease}
+tbody tr:hover{background:var(--card)}
+td.num{font-variant-numeric:tabular-nums;color:var(--text-muted)}
+td.num b{color:var(--text);font-weight:600}
+.name{font-weight:600}
+.handle{color:var(--peri-deep);font-size:0.84rem}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.78rem;letter-spacing:0;
+  color:var(--text-muted);white-space:nowrap}
+.pill{display:inline-block;border:1px solid var(--pill);border-radius:999px;padding:1px 9px;
+  font-size:0.72rem;font-weight:600;color:var(--peri-deep);white-space:nowrap}
+.pill.warn{color:var(--peach-deep);border-color:var(--peach)}
+.bio{color:var(--text-muted);font-size:0.82rem;max-width:180px}
+.empty{color:var(--text-muted);font-size:0.95rem;padding:32px 0}
+footer{border-top:1px solid var(--line);padding-top:24px;text-align:center;color:var(--peri-deep);
+  font-size:0.8rem}
+[hidden]{display:none!important}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--peri-deep);outline-offset:3px}
+@media(max-width:700px){.stats{grid-template-columns:repeat(2,1fr)}.page{padding:32px 16px}.chart-head{display:block}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="page">
+
+<header>
+  <p class="en">blur admin · shared dashboard</p>
+  <h1>이용자 대시보드</h1>
+  <p class="sub">가입 추이 · 로그인 계정 · 활동량. <span id="meta">로그인하면 최신 데이터를 불러옵니다.</span></p>
+</header>
+
+<section id="input">
+  <h2>대시보드 접속</h2>
+  <div class="card">
+    <p id="authNote">접근 권한이 등록된 blur 계정으로 로그인하세요.</p>
+    <div class="row" id="loginButtons">
+      <button class="primary" data-provider="google">Google로 로그인</button>
+      <button data-provider="kakao">카카오로 로그인</button>
+    </div>
+    <div class="row" id="sessionButtons" hidden>
+      <button class="primary" id="refresh">최신 데이터 새로고침</button>
+      <button id="logout">로그아웃</button>
+    </div>
+    <p class="note">지표와 이용자 목록은 두 관리자에게 동일하게 표시됩니다. 시간은 한국 기준입니다.</p>
+    <div class="err" id="err" role="status" aria-live="polite"></div>
+  </div>
+</section>
+
+<section id="summary" hidden>
+  <h2>요약</h2>
+  <div class="stats" id="stats"></div>
+</section>
+
+<section id="trend" hidden>
+  <h2>가입 추이</h2>
+  <div class="chart-head">
+    <div class="legend">
+      <span><i style="background:#97A4E2"></i>일별 신규</span>
+      <span><i style="background:#B4713F"></i>누적</span>
+    </div>
+    <div class="seg" id="range">
+      <button data-days="14" aria-pressed="false">14일</button>
+      <button data-days="30" aria-pressed="true">30일</button>
+      <button data-days="90" aria-pressed="false">90일</button>
+      <button data-days="0" aria-pressed="false">전체</button>
+    </div>
+  </div>
+  <svg id="chart" viewBox="0 0 1000 240" role="img" aria-label="가입 추이 차트"></svg>
+</section>
+
+<section id="listSec" hidden>
+  <h2>이용자 목록</h2>
+  <div class="filters">
+    <input type="search" aria-label="이용자 검색" id="q" placeholder="이름 · 아이디 · 이메일 검색">
+    <select id="prov" aria-label="로그인 계정 필터"><option value="">로그인 계정 전체</option></select>
+    <select id="state" aria-label="이용자 상태 필터">
+      <option value="">상태 전체</option>
+      <option value="profile">프로필 완료</option>
+      <option value="noprofile">프로필 미완료(자동 아이디)</option>
+      <option value="nofriend">친구 0명</option>
+      <option value="poster">사진 올린 사람</option>
+      <option value="silent">사진 0장</option>
+    </select>
+    <span class="note" id="count"></span>
+  </div>
+  <div style="overflow-x:auto"><table>
+    <thead><tr>
+      <th data-k="name">이름</th>
+      <th data-k="handle">아이디</th>
+      <th data-k="provider">로그인 계정</th>
+      <th data-k="email">이메일</th>
+      <th data-k="signed_up" data-dir="desc">가입 시각</th>
+      <th data-k="last_post">최근 게시</th>
+      <th data-k="last_sign_in" title="재로그인 시각. 세션이 유지되면 갱신되지 않으니 활동 지표로 쓰지 말 것">최근 로그인 ⚠</th>
+      <th data-k="posts">사진</th>
+      <th data-k="comments">댓글</th>
+      <th data-k="friends">친구</th>
+      <th data-k="bio">한 줄 소개</th>
+    </tr></thead>
+    <tbody id="rows"></tbody>
+  </table></div>
+  <p class="empty" id="noRows" hidden>조건에 맞는 이용자가 없다.</p>
+</section>
+
+<footer>blur admin · 허용된 계정 전용 · 이용자 데이터는 이 창에서만 유지됩니다</footer>
+</div>
+
+<script src="users.js" defer></script>
+<script src="auth.js" defer></script>
+</body>
+</html>
