@@ -4,8 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#f7fbfb">
-    <meta name="description" content="blur 웹 베타 종료 안내와 고객지원·개인정보 처리방침 링크">
-    <title>blur 웹 베타 종료 안내</title>
+    <meta name="description" content="blur — 하루 한 장씩 나누는 사진일기. App Store에서 내려받고, 고객지원·개인정보 처리방침을 확인하세요.">
+    <title>blur — 함께 보는 사진일기</title>
     <link rel="icon" href="./assets/favicon-32.png" type="image/png" sizes="32x32">
     <style>
       :root {
@@ -135,6 +135,7 @@
         border-color: var(--line);
         background: rgba(255, 255, 255, .58);
       }
+      .button.wide { grid-column: 1 / -1; }
       .button:hover { transform: translateY(-1px); }
       .button:focus-visible {
         outline: 3px solid rgba(114, 200, 242, .54);
@@ -162,13 +163,14 @@
   </head>
   <body>
     <main>
-      <article aria-labelledby="retirement-title">
+      <article aria-labelledby="store-title">
         <div class="mark" aria-hidden="true"></div>
-        <p class="status">WEB BETA COMPLETE</p>
-        <h1 id="retirement-title">웹에서의<br>blur를 마쳤어요.</h1>
-        <p class="copy">웹 베타는 종료했습니다. 기존 계정과 데이터에 관한 요청은 고객지원으로 보내 주세요. 지금은 iPhone 앱 출시를 준비하고 있습니다.</p>
-        <nav aria-label="도움말 링크">
-          <a class="button primary" href="./legal/support.html">고객지원</a>
+        <p class="status">NOW ON THE APP STORE</p>
+        <h1 id="store-title">blur가<br>앱으로 나왔어요.</h1>
+        <p class="copy">하루 한 장, 친구가 눌러야 선명해지는 사진일기. iPhone 앱을 App Store에서 내려받을 수 있어요. 웹 베타는 종료했고, 기존 계정과 데이터에 관한 요청은 고객지원으로 보내 주세요.</p>
+        <nav aria-label="앱 내려받기와 도움말 링크">
+          <a class="button primary wide" href="https://apps.apple.com/kr/app/id6805774340">App Store에서 받기</a>
+          <a class="button secondary" href="./legal/support.html">고객지원</a>
           <a class="button secondary" href="./legal/privacy.html">개인정보 처리방침</a>
         </nav>
         <footer>
