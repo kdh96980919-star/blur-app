@@ -1,4 +1,5 @@
 // Only the PKCE verifier survives the OAuth redirect. Sessions and user data stay in memory.
+// The page script loads first and provides SOURCE({rpc, key}), DATA, render(), and clearView().
 const API = 'https://nzrfzxpqvhdkmogpsscz.supabase.co';
 const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im56cmZ6eHBxdmhka21vZ3Bzc2N6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM0Mjc3NjYsImV4cCI6MjA5OTAwMzc2Nn0.9QP6B46co4109frO-H_PYX_f4fvoPwEwz6HbIHGJuz8';
 const VERIFIER_KEY = 'blur-dashboard-pkce';
@@ -23,9 +24,8 @@ async function request(path, body, token) {
 }
 
 function clearData() {
-  DATA = {generated_at: null, users: []};
-  $('#rows').replaceChildren(); $('#stats').replaceChildren(); $('#chart').replaceChildren();
-  $('#q').value = ''; $('#prov').innerHTML = '<option value="">로그인 계정 전체</option>';
+  DATA = {generated_at: null, [SOURCE.key]: []};
+  clearView();
   render();
 }
 
@@ -59,9 +59,9 @@ async function refresh() {
       if (current !== generation) return;
       session = next;
     }
-    const data = await request('/rest/v1/rpc/dashboard_users', {}, session.access_token);
+    const data = await request('/rest/v1/rpc/' + SOURCE.rpc, {}, session.access_token);
     if (current !== generation) return;
-    if (!Array.isArray(data?.users) || !data.generated_at) throw new Error('데이터 형식이 올바르지 않습니다.');
+    if (!Array.isArray(data?.[SOURCE.key]) || !data.generated_at) throw new Error('데이터 형식이 올바르지 않습니다.');
     DATA = data; render(); $('#err').textContent = '최신 데이터입니다.';
   } catch (error) {
     if (current !== generation) return;

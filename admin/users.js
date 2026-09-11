@@ -1,11 +1,18 @@
 
 const PROV = {kakao:'카카오', google:'Google', apple:'Apple', email:'이메일', unknown:'?'};
+const SOURCE = {rpc:'dashboard_users', key:'users'};
 const $ = s => document.querySelector(s);
 let DATA = {generated_at:null, users:[]};
 let sortK = 'signed_up', sortDir = 'desc', days = 30;
 
 const kstToday = () => new Date(Date.now() + 9*3600e3).toISOString().slice(0,10);
 const dayStr = d => d.toISOString().slice(0,10);
+
+// auth.js 가 로그아웃·조회 실패 때 부른다. 화면에 남은 이용자 데이터를 지운다.
+function clearView(){
+  $('#rows').replaceChildren(); $('#stats').replaceChildren(); $('#chart').replaceChildren();
+  $('#q').value = ''; $('#prov').innerHTML = '<option value="">로그인 계정 전체</option>';
+}
 
 function render(){
   const u = DATA.users;
@@ -160,4 +167,3 @@ document.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => {
   th.dataset.dir = sortDir;
   renderRows();
 });
-
