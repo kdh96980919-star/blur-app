@@ -107,22 +107,6 @@ td.num b{color:var(--text);font-weight:600}
 .empty{color:var(--text-muted);font-size:0.95rem;padding:32px 0}
 footer{border-top:1px solid var(--line);padding-top:24px;text-align:center;color:var(--peri-deep);
   font-size:0.8rem}
-
-/* 05~07 유입 채널 */
-#chanStats{grid-template-columns:repeat(5,1fr)}
-.bars{margin:0 0 26px}
-.bar{display:grid;grid-template-columns:160px 1fr 72px;align-items:center;gap:14px;padding:7px 0}
-.bar .bl{font-size:0.85rem;font-weight:500}
-.bar .bt{background:var(--card);border-radius:999px;height:14px;overflow:hidden}
-.bar .bt i{display:block;height:100%;border-radius:999px}
-.bar .bv{text-align:right;font-variant-numeric:tabular-nums;font-weight:600;font-size:0.88rem}
-.legend span{display:inline-flex;align-items:center}
-table.plain th{cursor:default}
-table.plain th:hover{color:var(--text-muted)}
-table.cohort th:first-child,table.cohort td:first-child{width:1%;white-space:nowrap;padding-right:28px}
-td.heat{text-align:center;font-variant-numeric:tabular-nums;font-size:0.82rem;padding:9px 6px;
-  border:1px solid var(--surface);color:var(--text)}
-@media(max-width:700px){#chanStats{grid-template-columns:repeat(2,1fr)}.bar{grid-template-columns:110px 1fr 56px}}
 [hidden]{display:none!important}
 button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--peri-deep);outline-offset:3px}
 @media(max-width:700px){.stats{grid-template-columns:repeat(2,1fr)}.page{padding:32px 16px}.chart-head{display:block}}
@@ -211,65 +195,10 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
   <p class="empty" id="noRows" hidden>조건에 맞는 이용자가 없다.</p>
 </section>
 
-<section id="chanInput">
-  <h2>유입 채널 투입</h2>
-  <div class="card">
-    <p>App Store Connect → <b>앱 분석 → 획득 → 캠페인</b> 에서 내려받은 파일을 그대로 붙여넣는다.
-      CSV·TSV 둘 다 읽고, 캠페인 이름(<code>insta-ad</code>, <code>x-own</code> …)을 잘라 채널로 묶는다.
-      이름 규칙은 <code>docs/campaign-links.md</code> 2번.</p>
-    <textarea id="chanRaw" aria-label="App Store Connect 캠페인 데이터"
-      placeholder="Date&#9;Campaign&#9;Downloads&#10;2026-09-19&#9;insta-ad&#9;24"></textarea>
-    <p style="margin-top:16px">광고비 (선택). 한 줄에 <code>캠페인 금액</code> — 넣으면 설치 단가가 계산된다.</p>
-    <textarea id="chanSpend" style="min-height:76px" aria-label="캠페인별 광고비"
-      placeholder="insta-ad 150000&#10;x-ad 80000"></textarea>
-    <div class="row">
-      <button class="primary" id="chanRun">채널 집계</button>
-      <button id="chanClear">지우기</button>
-      <span class="note">이 표는 로그인과 무관하다. 계정 데이터가 아니라 설치 기기 집계다.</span>
-    </div>
-    <div class="err" id="chanErr" role="status" aria-live="polite"></div>
-  </div>
-</section>
-
-<section id="chanSec" hidden>
-  <h2>유입 채널</h2>
-  <div class="filters">
-    <select id="chanMetric" aria-label="볼 지표"></select>
-    <span class="note">막대가 흐린 쪽이 직접제작, 진한 쪽이 광고다.</span>
-  </div>
-  <div class="stats" id="chanStats"></div>
-  <div class="bars" id="chanBars" style="margin-top:26px"></div>
-  <div style="overflow-x:auto"><table class="plain">
-    <thead><tr>
-      <th>채널</th><th>캠페인</th><th>값</th><th>비중</th><th>광고비</th><th>설치 단가</th>
-    </tr></thead>
-    <tbody id="chanRows"></tbody>
-  </table></div>
-</section>
-
-<section id="chanTrend" hidden>
-  <h2>채널별 추이</h2>
-  <svg id="chanChart" viewBox="0 0 1000 260" role="img" aria-label="채널별 추이 차트"></svg>
-  <div class="legend" id="chanLegend"></div>
-</section>
-
-<section id="cohortSec" hidden>
-  <h2>유지율 코호트</h2>
-  <div class="filters">
-    <select id="cohortCh" aria-label="채널 필터"><option value="">채널 전체</option></select>
-    <span class="note">ASC 유지율 파일을 위에 붙여넣으면 이 표가 나온다. 가로가 설치 후 경과 기간이다.</span>
-  </div>
-  <div style="overflow-x:auto"><table class="plain cohort">
-    <thead><tr id="cohortHead"></tr></thead>
-    <tbody id="cohortRows"></tbody>
-  </table></div>
-</section>
-
 <footer>blur admin · 허용된 계정 전용 · 이용자 데이터는 이 창에서만 유지됩니다</footer>
 </div>
 
 <script src="users.js" defer></script>
 <script src="auth.js" defer></script>
-<script src="channels.js" defer></script>
 </body>
 </html>
