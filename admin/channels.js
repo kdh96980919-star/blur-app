@@ -2,7 +2,8 @@
 // 개인 데이터가 없다(캠페인 × 날짜 집계). 서버·DB·로그인 없이 브라우저 안에서만 돈다.
 // 캠페인 이름 규칙은 blur-service/docs/campaign-links.md 2번과 같은 것을 쓴다.
 //
-// users.js 가 $·esc·DATA 를 전역에 두므로 이 파일은 통째로 IIFE 안에 있어야 한다.
+// channels.html 전용 — 2026-09-19 부터 users.html 에서 떼어냈다(김 지시: 둘을 따로 본다).
+// 자체 esc·el 을 들고 있어 users.js 에 기대는 것이 없다. IIFE 는 그대로 둔다 — 전역을 안 만든다.
 (function(){
 const PLATFORM = [
   ['인스타그램', ['insta','instagram','ig'],   '#97A4E2'],
