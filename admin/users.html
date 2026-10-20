@@ -104,12 +104,16 @@ td.num b{color:var(--text);font-weight:600}
   font-size:0.72rem;font-weight:600;color:var(--peri-deep);white-space:nowrap}
 .pill.warn{color:var(--peach-deep);border-color:var(--peach)}
 .bio{color:var(--text-muted);font-size:0.82rem;max-width:180px}
+/* 표는 열이 많아 본문 폭(1080)을 넘겨 화면 폭까지 쓴다. 그래도 좁으면 시각이 날짜 아래로 내려간다 */
+#listSec{width:min(1600px,calc(100vw - 48px));margin-left:50%;transform:translateX(-50%)}
+td.mono{white-space:normal;min-width:calc(10ch + 12px)}
+td.mono.email{overflow-wrap:anywhere}
 .empty{color:var(--text-muted);font-size:0.95rem;padding:32px 0}
 footer{border-top:1px solid var(--line);padding-top:24px;text-align:center;color:var(--peri-deep);
   font-size:0.8rem}
 [hidden]{display:none!important}
 button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--peri-deep);outline-offset:3px}
-@media(max-width:700px){.stats{grid-template-columns:repeat(2,1fr)}.page{padding:32px 16px}.chart-head{display:block}}
+@media(max-width:700px){#listSec{width:calc(100vw - 32px)}.stats{grid-template-columns:repeat(2,1fr)}.page{padding:32px 16px}.chart-head{display:block}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
