@@ -136,7 +136,7 @@ function renderRows(){
       <td class="name">${esc(x.name || '이름없음')}${raw(x) ? ' <span class="pill warn">미완료</span>' : ''}</td>
       <td class="handle">${x.handle ? '@'+esc(x.handle) : '—'}</td>
       <td>${provs || '—'}</td>
-      <td class="mono">${esc(x.email || '—')}</td>
+      <td class="mono email">${esc(x.email || '—')}</td>
       <td class="mono">${esc(x.signed_up || '—')}</td>
       <td class="mono">${esc(x.last_active || '—')}</td>
       <td class="mono">${esc(x.last_post || '—')}</td>
