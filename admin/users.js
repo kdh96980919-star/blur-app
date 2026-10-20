@@ -138,6 +138,7 @@ function renderRows(){
       <td>${provs || '—'}</td>
       <td class="mono">${esc(x.email || '—')}</td>
       <td class="mono">${esc(x.signed_up || '—')}</td>
+      <td class="mono">${esc(x.last_active || '—')}</td>
       <td class="mono">${esc(x.last_post || '—')}</td>
       <td class="mono">${esc(x.last_sign_in || '—')}</td>
       <td class="num">${+x.posts ? '<b>'+Number(x.posts)+'</b>' : 0}</td>
