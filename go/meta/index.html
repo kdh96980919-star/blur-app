@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#d3e6ee">
+    <meta name="description" content="blur — 매일 하나의 주제, 친구들만 보는 사진일기.">
+    <meta name="robots" content="noindex">
+    <title>blur — 함께 보는 사진일기</title>
+    <link rel="icon" href="../../assets/favicon-32.png" type="image/png" sizes="32x32">
+    <link rel="apple-touch-icon" href="../../assets/icon-180.png">
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #47434c;
+        --ink-soft: #5a5660;
+        --mist: #d6e7ef;
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; margin: 0; }
+      body {
+        color: var(--ink);
+        font-family: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Apple SD Gothic Neo", sans-serif;
+        font-weight: 300;
+        -webkit-font-smoothing: antialiased;
+        background: var(--mist) url("./bg.jpg") center / cover no-repeat fixed;
+      }
+      main {
+        position: relative;
+        min-height: 100vh;
+        min-height: 100svh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: env(safe-area-inset-top) 24px calc(env(safe-area-inset-bottom) + 132px);
+        text-align: center;
+      }
+      h1 {
+        margin: 0;
+        font-size: 21px;
+        font-weight: 300;
+        letter-spacing: .01em;
+      }
+      .icon {
+        width: 118px;
+        height: 118px;
+        margin: 44px 0 48px;
+        border-radius: 27%;
+        box-shadow: 0 18px 34px rgba(110, 104, 140, .2);
+        animation: focus 1400ms cubic-bezier(.2, .7, .2, 1) 200ms both;
+      }
+      .tagline {
+        margin: 0;
+        color: var(--ink-soft);
+        font-size: 15px;
+        letter-spacing: .14em;
+      }
+      .store {
+        position: absolute;
+        left: 50%;
+        bottom: calc(env(safe-area-inset-bottom) + 56px);
+        transform: translateX(-50%);
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        min-height: 54px;
+        padding: 0 30px;
+        border: 1px solid rgba(255, 255, 255, .8);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, .42);
+        box-shadow: 0 10px 30px rgba(110, 104, 140, .14);
+        backdrop-filter: blur(18px) saturate(1.2);
+        -webkit-backdrop-filter: blur(18px) saturate(1.2);
+        color: var(--ink);
+        font-size: 16px;
+        font-weight: 400;
+        letter-spacing: .01em;
+        white-space: nowrap;
+        text-decoration: none;
+        -webkit-tap-highlight-color: transparent;
+        transition: transform 160ms ease, background 160ms ease;
+        animation: rise 700ms ease 900ms both;
+      }
+      .store:active { transform: translateX(-50%) scale(.97); background: rgba(255, 255, 255, .6); }
+      .store:focus-visible { outline: 2px solid rgba(71, 67, 76, .5); outline-offset: 4px; }
+      .store svg { width: 17px; height: 17px; margin-top: -2px; }
+      @keyframes focus {
+        from { filter: blur(14px); opacity: .55; transform: scale(.94); }
+        to { filter: blur(0); opacity: 1; transform: scale(1); }
+      }
+      @keyframes rise {
+        from { opacity: 0; transform: translate(-50%, 8px); }
+        to { opacity: 1; transform: translate(-50%, 0); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .icon, .store { animation: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>One topic, one photo.</h1>
+      <img class="icon" src="./icon.jpg" alt="blur 앱 아이콘" width="118" height="118">
+      <p class="tagline">Only your friends.</p>
+      <a class="store" href="https://apps.apple.com/app/apple-store/id6805774340?pt=129358809&amp;ct=meta&amp;mt=8">
+        <svg viewBox="0 0 384 512" aria-hidden="true"><path fill="currentColor" d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"/></svg>
+        App Store에서 다운받기
+      </a>
+    </main>
+  </body>
+</html>
